@@ -9,17 +9,22 @@ lightweight WebView shell (no AndroidX, ~26 KB APK) around the
 (sideload; enable "install from unknown sources" when prompted).
 Requires Android 7.0+.
 
-## Current status
+## Content
 
-This build ships **sample pages** — the original *Bade Bahuji* media zip
-was not available to the build environment. To put the real book in:
+The book is built from the *Bade Bahuji* WhatsApp chat export
+(64 unique Hindi messages, October 2025 – July 2026; media-omitted
+lines, system markers, and 52 duplicate messages were filtered out).
+Long messages flow across multiple pages with क्रमशः continuation
+markers — 103 pages total, each message shown with its original date.
 
-1. Copy the book's page images into `apk/assets/book/pages/`
-   (e.g. `001.jpg`, `002.jpg`, … in reading order).
-2. Edit `apk/assets/book/pages.js`: replace the sample entries with
-   `{ type: "image", src: "pages/001.jpg" }`, one per page
-   (keep the first/last cover entries, or make the cover an image too).
-3. Run `./build.sh` — the new APK appears at `dist/bade-bahuji.apk`.
+`apk/assets/book/pages.js` is **generated** by measured pagination:
+each message is rendered in headless Chromium at the book's reference
+page size (550×780, the app's real CSS) and split at sentence
+boundaries so no page ever overflows. Typography scales with the
+actual page box (`--pw` CSS variable set by `book.js`), so the fit
+holds on every screen size and orientation. To regenerate from a new
+chat export, re-run the parse + paginate scripts (see git history)
+and rebuild with `./build.sh`.
 
 ## Features
 

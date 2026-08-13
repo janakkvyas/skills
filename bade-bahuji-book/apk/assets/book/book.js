@@ -62,6 +62,48 @@
   });
 
   pageFlip.loadFromHTML(document.querySelectorAll(".page"));
+  window.__flip = pageFlip; // exposed for tests/debugging
+
+  // Keep typography proportional to the real page box: pagination was measured
+  // at the 550px reference width, so --pw must always track the page width.
+  function setPw(w) {
+    document.documentElement.style.setProperty("--pw", String(Math.round(w)));
+  }
+
+  // early estimate from the stage box, before the engine lays pages out
+  (function () {
+    var r = document.getElementById("stage").getBoundingClientRect();
+    var w = r.width - 28, h = r.height - 28;
+    var est = r.width > r.height
+      ? Math.min(w / 2, (h * 550) / 780)
+      : Math.min(w, (h * 550) / 780);
+    if (est > 0) setPw(est);
+  })();
+
+  function updatePageWidth() {
+    var pages = bookEl.querySelectorAll(".page");
+    var w = 0;
+    for (var i = 0; i < pages.length; i++) {
+      if (pages[i].clientWidth > w) w = pages[i].clientWidth;
+    }
+    if (w > 0) setPw(w);
+    return w > 0;
+  }
+
+  var pwTries = 0;
+  function pollPw() {
+    if (!updatePageWidth() && pwTries++ < 120) {
+      window.requestAnimationFrame(pollPw);
+    }
+  }
+  pollPw();
+
+  pageFlip.on("changeOrientation", function () { setTimeout(updatePageWidth, 60); });
+  var resizeTimer = null;
+  window.addEventListener("resize", function () {
+    if (resizeTimer) clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(updatePageWidth, 150);
+  });
 
   // ---- page-turn sound (synthesised, no audio asset needed) ----
   var audioCtx = null;
