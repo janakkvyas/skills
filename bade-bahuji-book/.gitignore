@@ -1,0 +1,5 @@
+tools/
+build/
+dist/unsigned*.apk
+javac.*.args
+__pycache__/
