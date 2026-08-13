@@ -7,6 +7,7 @@
   // ---- build page elements ----
   var bookEl = document.getElementById("book");
   var frag = document.createDocumentFragment();
+  var pageEls = [];
 
   window.BOOK_PAGES.forEach(function (p) {
     var el = document.createElement("div");
@@ -28,6 +29,7 @@
 
     el.appendChild(inner);
     frag.appendChild(el);
+    pageEls.push(el);
   });
 
   bookEl.appendChild(frag);
@@ -63,6 +65,7 @@
 
   pageFlip.loadFromHTML(document.querySelectorAll(".page"));
   window.__flip = pageFlip; // exposed for tests/debugging
+  window.__pageEls = pageEls;
 
   // Keep typography proportional to the real page box: pagination was measured
   // at the 550px reference width, so --pw must always track the page width.
@@ -92,17 +95,69 @@
 
   var pwTries = 0;
   function pollPw() {
-    if (!updatePageWidth() && pwTries++ < 120) {
+    if (updatePageWidth()) {
+      fitPages();
+    } else if (pwTries++ < 120) {
       window.requestAnimationFrame(pollPw);
     }
   }
   pollPw();
 
-  pageFlip.on("changeOrientation", function () { setTimeout(updatePageWidth, 60); });
+  // ---- on-device auto-fit ----
+  // Pagination was measured in desktop Chromium; a device's Devanagari font
+  // can render taller lines. Measure every message page off-screen at the
+  // current page size and shrink its text (--fit) until it fits its box.
+  function fitPages() {
+    var pw = parseFloat(
+      document.documentElement.style.getPropertyValue("--pw")) || 550;
+    var ph = (pw * 780) / 550;
+    var meas = document.createElement("div");
+    meas.className = "page paper";
+    meas.style.cssText = "position:absolute;left:-9999px;top:0;width:" + pw +
+      "px;height:" + ph + "px;visibility:hidden;pointer-events:none;overflow:hidden;";
+    document.body.appendChild(meas);
+
+    for (var i = 0; i < pageEls.length; i++) {
+      var entry = window.BOOK_PAGES[i];
+      if (!entry || entry.hard) continue;
+      meas.style.setProperty("--fit", "1");
+      meas.innerHTML = '<div class="page-inner">' + entry.html + "</div>";
+      var body = meas.querySelector(".msgbody");
+      if (!body) continue;
+      var fit = 1.0;
+      while (fit > 0.75 && body.scrollHeight > body.clientHeight + 1) {
+        fit -= 0.03;
+        meas.style.setProperty("--fit", String(fit));
+      }
+      var innerEl = pageEls[i].firstElementChild; // .page-inner; the engine
+      if (!innerEl) continue;                     // rewrites the outer style
+      if (fit < 1.0) {
+        innerEl.style.setProperty("--fit", String(fit));
+      } else {
+        innerEl.style.removeProperty("--fit");
+      }
+    }
+    document.body.removeChild(meas);
+  }
+
+  function refreshLayout() {
+    if (updatePageWidth()) fitPages();
+  }
+  window.__fitPages = fitPages;
+
+  // Fonts (and their metrics) can settle after first layout; re-fit a few
+  // times early on so late metric changes never leave a page clipped.
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(function () { setTimeout(refreshLayout, 50); });
+  }
+  setTimeout(refreshLayout, 400);
+  setTimeout(refreshLayout, 1200);
+
+  pageFlip.on("changeOrientation", function () { setTimeout(refreshLayout, 60); });
   var resizeTimer = null;
   window.addEventListener("resize", function () {
     if (resizeTimer) clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(updatePageWidth, 150);
+    resizeTimer = setTimeout(refreshLayout, 150);
   });
 
   // ---- page-turn sound (synthesised, no audio asset needed) ----

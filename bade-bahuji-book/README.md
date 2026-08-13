@@ -22,7 +22,12 @@ each message is rendered in headless Chromium at the book's reference
 page size (550×780, the app's real CSS) and split at sentence
 boundaries so no page ever overflows. Typography scales with the
 actual page box (`--pw` CSS variable set by `book.js`), so the fit
-holds on every screen size and orientation. To regenerate from a new
+holds on every screen size and orientation. Two further device
+safeguards: the WebView pins `textZoom` to 100 so the system font-size
+setting cannot rescale the layout, and at startup `book.js` re-measures
+every page with the device's own fonts, shrinking any page that would
+overflow (per-page `--fit` factor, applied to `.page-inner` because
+the flip engine rewrites the outer elements' inline styles). To regenerate from a new
 chat export, re-run the parse + paginate scripts (see git history)
 and rebuild with `./build.sh`.
 

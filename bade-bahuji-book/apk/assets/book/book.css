@@ -103,9 +103,11 @@ html, body {
 }
 .msgdate .cont { opacity: 0.65; font-style: italic; }
 
-.msgbody { flex: 1 1 auto; overflow: hidden; }
+/* --fit is a per-page shrink factor applied by book.js when a device's font
+   metrics render taller than the reference used for pagination */
+.msgbody { flex: 1 1 auto; overflow: hidden; min-height: 0; }
 .msgbody p {
-  font-size: calc(var(--pw) * 0.0375px);
+  font-size: calc(var(--pw) * 0.0375px * var(--fit, 1));
   line-height: 1.72;
   text-align: justify;
   margin-bottom: 2.8%;
@@ -114,7 +116,7 @@ html, body {
 .msgend {
   text-align: center;
   color: #b08b52;
-  font-size: calc(var(--pw) * 0.042px);
+  font-size: calc(var(--pw) * 0.042px * var(--fit, 1));
   margin-top: 1%;
 }
 

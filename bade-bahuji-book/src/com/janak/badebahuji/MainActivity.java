@@ -31,6 +31,10 @@ public class MainActivity extends Activity {
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
+        // The book paginates its own text; the system font-size setting must
+        // not rescale it or pages overflow. Accessibility is preserved by the
+        // book's own page-relative typography.
+        settings.setTextZoom(100);
         webView.setWebViewClient(new WebViewClient());
         webView.setBackgroundColor(0xFF14090B);
         webView.loadUrl("file:///android_asset/book/index.html");

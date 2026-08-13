@@ -66,7 +66,9 @@ function unitsToHtml(units) {
     <style>${css}</style>
     <style>
       html, body { background: #fff; overflow: auto; touch-action: auto; }
-      #measure { position: absolute; left: 20px; top: 20px; width: 550px; height: 780px; }
+      /* 780 is the app's reference page height; measure at 738 so every page
+         carries ~5% slack for devices whose fonts render taller lines */
+      #measure { position: absolute; left: 20px; top: 20px; width: 550px; height: 738px; }
       :root { --pw: 550; }
     </style></head>
     <body><div id="measure" class="page paper"><div class="page-inner">
