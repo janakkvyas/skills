@@ -36,6 +36,14 @@ These skills help you think through problems before writing code.
   npx skills@latest add mattpocock/skills/request-refactor-plan
   ```
 
+## Investing
+
+- **momentum-investing-india** — Evidence-based triage of trading ideas (WSB screenshots, options, F&O) for an Indian investor, and a staged momentum plan: backtest → paper trade → small real money. Pairs with the `momentum-backtester/` tools.
+
+  ```
+  npx skills@latest add janakkvyas/skills/momentum-investing-india
+  ```
+
 ## Development
 
 These skills help you write, refactor, and fix code.
