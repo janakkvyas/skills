@@ -99,12 +99,17 @@ What it does that the backtest did not:
   unless you pass `--force`.
 
 Run `rebalance` after the close on the last trading day of each month, and
-`status` whenever you like. A cron line that does both on weekdays at 16:00
-IST (it only trades when a new month has started):
+`status` whenever you like. `month_end.sh` does both, commits the updated
+`paper/` state and pushes it, so the account history lives in git:
 
 ```
-0 16 * * 1-5  cd /path/to/momentum-backtester && python paper.py rebalance >> paper/cron.log 2>&1 && python paper.py status >> paper/cron.log 2>&1
+./month_end.sh              # rebalance if due, status, commit, push
+./month_end.sh --no-push
 ```
+
+It is safe to run on any day (the rebalance guard makes mid-month runs
+status-only). A scheduled Claude Code task runs it on the 1st of each month;
+for a local cron instead: `0 8 1 * * cd /path/to/momentum-backtester && ./month_end.sh`.
 
 Give it one or two months. Compare the paper P&L against the Nifty line in
 `status` and against what the backtest's year-by-year table led you to expect.
