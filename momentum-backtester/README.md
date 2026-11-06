@@ -35,8 +35,12 @@ Prices are cached in `data/`; pass `--refresh` to re-download.
 
 ## Reading the results honestly
 
-The headline CAGR from this tool is **too high** and you should know why
-before you look at it:
+The headline CAGR from this tool is **too high**: it prints ~34% a year on
+Nifty 200 since 2010, while NSE's own bias-free Nifty200 Momentum 30 index
+(computed with the constituents as they were at the time) returned **18.8%
+a year from 2005 to mid-2026**, against 13.6% for Nifty 50. Plan on 15-19%,
+with 30-40% drawdowns and multi-year stretches of underperformance. Here is
+why the tool overstates it:
 
 - **Survivorship bias.** The universe is the index's members *today*: the
   survivors. Companies that collapsed and got kicked out are invisible. A
