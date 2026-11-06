@@ -69,13 +69,60 @@ momentum/report.py     metrics, markdown report, chart
 tests/                 offline tests on synthetic prices
 ```
 
-## Next stages
+## Stage 2: paper trading (`paper.py`)
 
-- **Stage 2 — paper trading.** Connect a broker API (Dhan has a free one),
-  compute this month's picks from live data, and log simulated orders. Run it
-  for 1-2 months and compare the paper P&L with the backtest's expectations.
-- **Stage 3 — small real allocation.** Only after Stage 2, only with money
-  whose loss would not matter, with hard loss limits coded in.
+The same rules, run forward on live prices, with **simulated orders only**.
+No broker account is needed; prices come from Yahoo Finance. Nothing in this
+code can place a real order.
+
+```bash
+python paper.py init --capital 30000      # once
+python paper.py picks                     # today's ranking and market-filter state
+python paper.py rebalance --dry-run       # see this month's orders
+python paper.py rebalance                 # record them (only acts once per month)
+python paper.py status                    # value, holdings, P&L, loss-limit check
+```
+
+State is kept in `paper/` (git-ignored): `account.json`, `orders.csv` with
+every simulated fill, and `equity.csv` with a value snapshot per run.
+
+What it does that the backtest did not:
+
+- **Whole shares.** With ₹30k, a ₹3,000 slot cannot hold APARINDS at ₹14,000.
+  Unfillable slots are reported and their cash is spread over the affordable
+  picks (capped at twice a normal slot). Consider `--top-n 5` for accounts
+  under ₹50k so slots are bigger.
+- **Monthly loss limit.** If the account falls 10% below its value at the last
+  rebalance, `status` sells everything and sits in cash until next month.
+  Set it with `init --max-monthly-loss`.
+- **Rebalance guard.** `rebalance` refuses to act twice in one calendar month
+  unless you pass `--force`.
+
+Run `rebalance` after the close on the last trading day of each month, and
+`status` whenever you like. A cron line that does both on weekdays at 16:00
+IST (it only trades when a new month has started):
+
+```
+0 16 * * 1-5  cd /path/to/momentum-backtester && python paper.py rebalance >> paper/cron.log 2>&1 && python paper.py status >> paper/cron.log 2>&1
+```
+
+Give it one or two months. Compare the paper P&L against the Nifty line in
+`status` and against what the backtest's year-by-year table led you to expect.
+If the experience of watching it is unpleasant at ₹30k, it will be unbearable
+at ₹3 lakh, and that is worth knowing before Stage 3.
+
+### Plugging in a broker later
+
+`paper.py` only needs two things from the outside world: daily closes (now
+Yahoo via `momentum/data.py`) and, eventually, an order sink. A Dhan or Kite
+adapter would replace `live_prices()` with the broker's historical-data
+endpoint and, for Stage 3 only, turn `apply_orders` into real order placement
+behind an explicit `--live` flag that does not exist yet, on purpose.
+
+## Stage 3: small real allocation
+
+Only after Stage 2, only with money whose loss would not matter, with the
+loss limits above still in force.
 
 ## Disclaimer
 
