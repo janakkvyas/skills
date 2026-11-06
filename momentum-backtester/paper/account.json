@@ -1,0 +1,38 @@
+{
+  "cash": 3899.5034813232396,
+  "start_capital": 30000.0,
+  "created": "2026-11-06",
+  "strategy": {
+    "top_n": 5,
+    "lookback_months": 12,
+    "skip_months": 1,
+    "absolute_filter": true,
+    "market_filter": true,
+    "market_ma_days": 200,
+    "min_history_days": 250
+  },
+  "risk": {
+    "max_monthly_loss": 0.1,
+    "cost_per_side": 0.002,
+    "cash_yield_annual": 0.06,
+    "spill_unfilled": true
+  },
+  "holdings": {
+    "LAURUSLABS": {
+      "shares": 4,
+      "avg_cost": 2340.0
+    },
+    "MCX": {
+      "shares": 2,
+      "avg_cost": 3528.0
+    },
+    "BHEL": {
+      "shares": 23,
+      "avg_cost": 418.79998779296875
+    }
+  },
+  "last_rebalance": "2026-11-06",
+  "value_at_rebalance": 29947.903200561523,
+  "last_cash_accrual": "2026-11-06",
+  "halted_until": null
+}
