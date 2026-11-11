@@ -1,0 +1,22 @@
+{
+  "name": "jalebi-seva",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "A toddler-friendly 3D game: make jalebi as a halwai and offer bhog to Shreenathji",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "build:android": "vite build --outDir android/app/src/main/assets/www --emptyOutDir",
+    "preview": "vite preview --host",
+    "test:e2e": "node tools/playthrough.mjs"
+  },
+  "dependencies": {
+    "@fontsource/baloo-2": "^5.3.0",
+    "@fontsource/baloo-bhai-2": "^5.3.0",
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "vite": "^5.4.21"
+  }
+}

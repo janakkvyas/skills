@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="hi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#f59e0b" />
+    <link rel="icon" type="image/png" href="./icon-512.png" />
+    <title>Jalebi Seva</title>
+  </head>
+  <body>
+    <canvas id="view"></canvas>
+
+    <div id="hud">
+      <div id="beads"></div>
+      <button id="gear" aria-label="Parents"></button>
+      <div id="meter"><div id="meter-fill"></div></div>
+      <div id="banner">
+        <button id="say" aria-label="Repeat"></button>
+        <span id="banner-text"></span>
+      </div>
+    </div>
+
+    <div id="fade"></div>
+
+    <div id="title" class="screen">
+      <div class="card">
+        <div class="logo" id="logo"></div>
+        <h1 id="t-title"></h1>
+        <p id="t-sub"></p>
+        <button id="play" class="big"></button>
+        <div id="langs"></div>
+      </div>
+    </div>
+
+    <div id="end" class="screen hidden">
+      <div class="card">
+        <h1 id="e-title"></h1>
+        <button id="again" class="big"></button>
+      </div>
+    </div>
+
+    <div id="parents" class="screen hidden">
+      <div class="card panel">
+        <h2 id="p-title"></h2>
+        <div id="p-langs" class="row"></div>
+        <button id="p-sound" class="opt"></button>
+        <button id="p-speech" class="opt"></button>
+        <button id="p-skip" class="opt"></button>
+        <button id="p-restart" class="opt"></button>
+        <button id="p-close" class="opt strong"></button>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,61 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.jalebiseva.game'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.jalebiseva.game'
+        minSdk 24
+        targetSdk 35
+        versionCode 1
+        versionName '0.1.0'
+    }
+
+    // One shared key, kept in the repository, signs every build so that a
+    // newer APK installs over an older one. It is a sideloading key for a
+    // family game, not a Play Store upload key: make a private one before
+    // publishing anywhere.
+    signingConfigs {
+        sideload {
+            storeFile file('sideload.keystore')
+            storePassword 'jalebi-seva'
+            keyAlias 'jalebi'
+            keyPassword 'jalebi-seva'
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.sideload
+        }
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.sideload
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+}
+
+// The game itself is the web build. `npm run build:android` writes it into
+// src/main/assets/www; fail early with a clear message if that was skipped.
+tasks.register('checkWebBuild') {
+    doLast {
+        def index = file('src/main/assets/www/index.html')
+        if (!index.exists()) {
+            throw new GradleException('Web build missing. Run "npm run build:android" in the project root first.')
+        }
+    }
+}
+preBuild.dependsOn 'checkWebBuild'
