@@ -42,7 +42,21 @@ const store = {
   },
 };
 
+// Where to start. A skip or a replay reloads the page and leaves the wanted
+// step in sessionStorage; the address (#step=7&speed=3) does the same job for
+// testing and wins when present.
+function pendingJump() {
+  try {
+    const v = sessionStorage.getItem('jalebi.jump');
+    sessionStorage.removeItem('jalebi.jump');
+    return v;
+  } catch (_) {
+    return null;
+  }
+}
 const params = new URLSearchParams(location.hash.replace(/^#/, '') || location.search);
+const jumped = pendingJump();
+if (jumped !== null && !params.has('step')) params.set('step', jumped);
 const startStep = Math.max(0, Math.min(STEPS.length - 1, parseInt(params.get('step') ?? '-1', 10)));
 const autoStart = params.has('step');
 const timeScale = parseFloat(params.get('speed') ?? '1') || 1;
@@ -187,7 +201,19 @@ const hud = new Hud(STEPS.length, {
 
 function jump(step) {
   voice.stop();
-  location.hash = step === null ? '' : `step=${step}`;
+  audio.stopSong();
+  try {
+    if (step === null) sessionStorage.removeItem('jalebi.jump');
+    else sessionStorage.setItem('jalebi.jump', String(step));
+  } catch (_) {
+    /* storage unavailable: fall back to the address alone */
+    location.hash = step === null ? '' : `step=${step}`;
+  }
+  if (location.hash.includes('step=')) {
+    const rest = location.hash.replace(/^#/, '').split('&').filter((kv) => !kv.startsWith('step='));
+    if (step !== null) rest.unshift(`step=${step}`);
+    location.hash = rest.join('&');
+  }
   location.reload();
 }
 
