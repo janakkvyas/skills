@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { tween, wait, ease, arcTo, scaleTo, boing, rotateTo, onFrame } from '../engine/tween.js';
 import { make } from '../engine/assets.js';
 import { COLORS } from '../art/materials.js';
-import { jalebiMaterial, jalebiPile, jalebiGeometry, sharedJalebiMaterial, applyJalebiLook } from '../art/props.js';
+import { jalebiMaterial, jalebiPile, jalebiGeometry, sharedJalebiMaterial, applyJalebiLook, saffronThread } from '../art/props.js';
 import { AREAS, makeSwirl } from '../art/world.js';
 import { praise } from './i18n.js';
 
@@ -131,14 +131,20 @@ function tapTimes(ctx, obj, n, onTap, { radius = 0.3, offset = null } = {}) {
 }
 
 /** Lift a container, tip it over `target`, and pour its contents in. */
-async function pourInto(ctx, obj, target, color, { part = 'fill', onStream = null, leave = true } = {}) {
+async function pourInto(ctx, obj, target, color, { part = 'fill', onStream = null, leave = true, kind = 'blob' } = {}) {
   const home = obj.position.clone();
   const side = home.x < target.x ? -1 : 1;
   const above = V3(target.x + side * 0.4, target.y + 0.55, target.z + 0.1);
   await arcTo(obj, above, 0.3, 0.5);
   await rotateTo(obj, { z: side * 1.85 }, 0.3);
   ctx.audio.pour();
-  ctx.fx.pour(V3(above.x - side * 0.28, above.y + 0.02, above.z), target, color, { n: 26, dur: 0.7 });
+  const stream = {
+    powder: { n: 70, size: 0.022, spread: 0.07 },
+    crystal: { n: 90, size: 0.016, spread: 0.06 },
+    water: { n: 80, size: 0.02, spread: 0.02 },
+    blob: { n: 26, size: 0.03, spread: 0.05 },
+  }[kind];
+  ctx.fx.pour(V3(above.x - side * 0.28, above.y + 0.02, above.z), target, color, { ...stream, dur: 0.75, kind });
   const fill = obj.userData.parts && obj.userData.parts[part];
   if (onStream) onStream();
   await wait(0.45);
@@ -415,13 +421,13 @@ async function batter(ctx) {
     ctx.audio.plop();
   };
   await tapAll(ctx, [
-    { obj: k.maida, radius: 0.28, onTap: () => pourInto(ctx, k.maida, target, 0xfff8e7, { onStream: () => add(0xfffaf0) }) },
+    { obj: k.maida, radius: 0.28, onTap: () => pourInto(ctx, k.maida, target, 0xfbf5e6, { kind: 'powder', onStream: () => add(0xfffaf0) }) },
     { obj: k.dahi, radius: 0.28, onTap: () => pourInto(ctx, k.dahi, target, 0xffffff, { onStream: () => add(0xfffdf5) }) },
     {
       obj: k.paani,
       radius: 0.3,
       offset: V3(0, 0.2, 0),
-      onTap: () => pourInto(ctx, k.paani, target, 0x9ad7ee, { part: 'water', onStream: () => add(0xfff6dc) }),
+      onTap: () => pourInto(ctx, k.paani, target, 0xd9f1fb, { part: 'water', kind: 'water', onStream: () => add(0xfff6dc) }),
     },
   ]);
 
@@ -471,12 +477,12 @@ async function chaasni(ctx) {
     ctx.audio.plop();
   };
   await tapAll(ctx, [
-    { obj: k.sugar, radius: 0.3, onTap: () => pourInto(ctx, k.sugar, target, 0xffffff, { onStream: add }) },
+    { obj: k.sugar, radius: 0.3, onTap: () => pourInto(ctx, k.sugar, target, 0xffffff, { kind: 'crystal', onStream: add }) },
     {
       obj: k.paani2,
       radius: 0.3,
       offset: V3(0, 0.2, 0),
-      onTap: () => pourInto(ctx, k.paani2, target, 0x9ad7ee, { part: 'water', onStream: add }),
+      onTap: () => pourInto(ctx, k.paani2, target, 0xd9f1fb, { part: 'water', kind: 'water', onStream: add }),
     },
   ]);
 
@@ -548,9 +554,9 @@ async function kesar(ctx) {
     async (i) => {
       const src = worldPos(k.kesar).add(V3(0, 0.2, 0));
       ctx.audio.sparkle();
-      ctx.fx.pour(src, center, COLORS.kesar, { n: 8, dur: 0.25, size: 0.014 });
+      ctx.fx.pour(src, center, COLORS.kesar, { n: 14, dur: 0.3, size: 0.0022, kind: 'strand', spread: 0.12 });
       await wait(0.45);
-      ctx.fx.splash(center, COLORS.kesar, 5);
+      floatOnSyrup(ctx, 'kesar', 6);
       const a = liquid.material.color.clone();
       const b = from.clone().lerp(to, (i + 1) / 3);
       await tween(0.6, (t) => liquid.material.color.lerpColors(a, b, t));
@@ -571,26 +577,53 @@ async function elaichi(ctx) {
   ctx.say('elaichi');
   const center = potSurface(k);
   await popIn(ctx, k.thali);
-  await Promise.all(k.pods.map((p) => popIn(ctx, p, 0.3)));
-  await tapAll(
+  await Promise.all([popIn(ctx, k.chura), ...k.pods.map((p) => popIn(ctx, p, 0.3))]);
+  // three pinches of the crushed cardamom
+  await tapTimes(
     ctx,
-    k.pods.map((pod) => ({
-      obj: pod,
-      radius: 0.14,
-      onTap: async () => {
-        tween(0.6, (t) => (pod.rotation.x = t * 9), ease.linear);
-        await arcTo(pod, center, 0.9, 0.6);
-        ctx.audio.plop();
-        ctx.fx.splash(center, COLORS.syrupKesar, 7);
-        pod.visible = false;
-        // the fragrance rises
-        for (let i = 0; i < 4; i++) ctx.fx.puff(center.clone().add(V3((Math.random() - 0.5) * 0.3, 0.1, 0)), 0xd8f3b0, 0.22, 1.5);
-      },
-    })),
+    k.chura,
+    3,
+    async () => {
+      const src = worldPos(k.chura).add(V3(0, 0.25, 0));
+      ctx.audio.sparkle();
+      ctx.fx.pour(src, center, COLORS.elaichi, { n: 34, dur: 0.35, size: 0.012, kind: 'chura', spread: 0.14 });
+      await wait(0.5);
+      floatOnSyrup(ctx, 'chura', 14);
+      // the fragrance rises
+      for (let i = 0; i < 4; i++) ctx.fx.puff(center.clone().add(V3((Math.random() - 0.5) * 0.3, 0.1, 0)), 0xd8f3b0, 0.22, 1.5);
+    },
+    { radius: 0.3, offset: V3(0, 0.1, 0) },
   );
-  await popOut(k.thali);
+  await Promise.all([popOut(k.thali), popOut(k.chura), ...k.pods.map((p) => popOut(p))]);
   await cheer(ctx, center.clone().setY(center.y + 0.5));
 }
+
+/** Leave a few threads of kesar, or specks of elaichi, floating on the syrup. */
+function floatOnSyrup(ctx, what, n) {
+  const k = ctx.world.kitchen;
+  const y = k.pot.userData.liquidTop + 0.006;
+  const host = k.pot.userData.floaters || (k.pot.userData.floaters = new THREE.Group());
+  if (!host.parent) k.pot.add(host);
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const r = Math.sqrt(Math.random()) * 0.4;
+    let m;
+    if (what === 'kesar') {
+      m = saffronThread();
+      m.scale.setScalar(0.06 + Math.random() * 0.03);
+    } else {
+      m = new THREE.Mesh(
+        speckGeo,
+        new THREE.MeshStandardMaterial({ color: [0x2a1f15, 0x4a3524, 0x9fb35c][Math.floor(Math.random() * 3)], roughness: 0.9 }),
+      );
+      m.scale.set(0.012, 0.004, 0.008 + Math.random() * 0.008);
+    }
+    m.position.set(Math.cos(a) * r, y, Math.sin(a) * r);
+    m.rotation.y = Math.random() * Math.PI * 2;
+    host.add(m);
+  }
+}
+const speckGeo = new THREE.BoxGeometry(1, 1, 1);
 
 // ---------------------------------------------------------------------------
 // 5. Jalebi talna (pipe and fry)

@@ -91,6 +91,8 @@ function tex(name) {
 
 const _tmp = new THREE.Vector3();
 const blobGeo = new THREE.SphereGeometry(1, 8, 6);
+const boxGeo = new THREE.BoxGeometry(1, 1, 1);
+const strandGeo = new THREE.CylinderGeometry(0.06, 0.03, 1, 4);
 
 export class FX {
   constructor(scene) {
@@ -255,21 +257,58 @@ export class FX {
     });
   }
 
-  /** A stream of blobs falling from `from` into `to`. */
-  pour(from, to, color, { n = 22, dur = 0.7, size = 0.03 } = {}) {
+  /**
+   * One piece of falling stuff. kind: 'blob' | 'powder' (flour) | 'crystal'
+   * (sugar) | 'water' | 'strand' (saffron) | 'chura' (crushed cardamom).
+   */
+  grain(kind, color, size) {
+    let m;
+    if (kind === 'crystal') {
+      m = new THREE.Mesh(boxGeo, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.12, metalness: 0.05 }));
+      m.scale.setScalar(size * (0.5 + Math.random() * 0.5));
+      m.rotation.set(Math.random() * 6, Math.random() * 6, 0);
+    } else if (kind === 'water') {
+      m = new THREE.Mesh(
+        blobGeo,
+        new THREE.MeshStandardMaterial({ color: 0xd9f1fb, roughness: 0.04, metalness: 0.1, transparent: true, opacity: 0.6 }),
+      );
+      const w = size * (0.55 + Math.random() * 0.4);
+      m.scale.set(w, w * (1.8 + Math.random() * 1.4), w);
+    } else if (kind === 'strand') {
+      m = new THREE.Mesh(strandGeo, new THREE.MeshStandardMaterial({ color: Math.random() < 0.25 ? 0xe8791a : 0xa3140a, roughness: 0.6 }));
+      m.scale.setScalar(size * 40);
+      m.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
+    } else if (kind === 'chura') {
+      const c = [0x2e2218, 0x4a3524, 0x9bb055, 0xb8a36a][Math.floor(Math.random() * 4)];
+      m = new THREE.Mesh(boxGeo, new THREE.MeshStandardMaterial({ color: c, roughness: 0.9 }));
+      m.scale.set(size * (0.4 + Math.random() * 0.8), size * 0.4, size * (0.4 + Math.random() * 0.8));
+      m.rotation.set(Math.random() * 6, Math.random() * 6, 0);
+    } else {
+      m = new THREE.Mesh(blobGeo, new THREE.MeshStandardMaterial({ color, roughness: kind === 'powder' ? 1 : 0.5 }));
+      m.scale.setScalar(size * (kind === 'powder' ? 0.35 + Math.random() * 0.5 : 0.7 + Math.random() * 0.6));
+    }
+    return m;
+  }
+
+  /** A stream falling from `from` into `to`. */
+  pour(from, to, color, { n = 22, dur = 0.7, size = 0.03, kind = 'blob', spread = 0.05 } = {}) {
     for (let i = 0; i < n; i++) {
       setTimeout(() => {
-        const b = this.blob(color, size * (0.7 + Math.random() * 0.6));
-        const start = from.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.05, 0, (Math.random() - 0.5) * 0.05));
+        const b = this.grain(kind, color, size);
+        const start = from.clone().add(new THREE.Vector3((Math.random() - 0.5) * spread, 0, (Math.random() - 0.5) * spread));
         const fall = Math.max(0.05, start.y - to.y);
         const T = Math.sqrt((2 * fall) / 9.8);
+        const land = spread * 2.5;
         this.spawn(b, {
           pos: start,
-          vel: new THREE.Vector3((to.x - start.x) / T, 0, (to.z - start.z) / T),
+          vel: new THREE.Vector3((to.x - start.x + (Math.random() - 0.5) * land) / T, 0, (to.z - start.z + (Math.random() - 0.5) * land) / T),
           gravity: 9.8,
           life: T,
           fade: false,
+          spin: kind === 'strand' || kind === 'crystal' || kind === 'chura' ? 6 : 0,
         });
+        // flour hangs in the air as it falls
+        if (kind === 'powder' && i % 5 === 0) this.puff(start.clone().lerp(to, 0.5 + Math.random() * 0.5), 0xffffff, 0.16, 0.9);
       }, (i / n) * dur * 1000);
     }
   }

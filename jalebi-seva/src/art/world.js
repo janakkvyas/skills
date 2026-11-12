@@ -148,16 +148,21 @@ function buildKitchen() {
   const thali = make('thali');
   thali.position.set(0.95, 0, 1.05);
   thali.visible = false;
+  const chura = make('katori', 'elaichi');
+  chura.scale.setScalar(1.35);
+  chura.position.set(0.95, 0.03, 1.02);
+  chura.visible = false;
   const pods = [];
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 2; i++) {
     const p = make('elaichi');
-    p.scale.setScalar(1.25);
-    p.position.set(0.95 + (i - 1) * 0.17, 0.02, 1.05 + (i % 2) * 0.09 - 0.04);
-    p.rotation.y = i * 1.1;
+    p.scale.setScalar(1.15);
+    p.position.set(0.95 + (i ? 0.19 : -0.2), 0.02, 1.2 + i * 0.03);
+    p.rotation.y = i ? 0.9 : -0.5;
     p.visible = false;
     pods.push(p);
     g.add(p);
   }
+  g.add(chura);
   g.add(chulhaA, pot, sugar, paani2, kesar, thali);
 
   // --- frying chulha ---
@@ -175,7 +180,7 @@ function buildKitchen() {
   tokri.visible = false;
   g.add(tokri);
 
-  return { group: g, bowl, maida, dahi, paani, spoon, chulhaA, pot, sugar, paani2, kesar, thali, pods, chulhaB, kadhai, bag, tokri };
+  return { group: g, bowl, maida, dahi, paani, spoon, chulhaA, pot, sugar, paani2, kesar, thali, pods, chura, chulhaB, kadhai, bag, tokri };
 }
 
 // ---------------------------------------------------------------------------

@@ -113,7 +113,146 @@ registerModel('bowl', () => {
   return g;
 });
 
-// A small brass katori with something in it: 'maida' | 'dahi' | 'sugar' | 'kesar'
+// ---------------------------------------------------------------------------
+// What goes in the bowls. Each is built to read as the real thing: flour is a
+// soft matt heap, sugar a pile of glinting crystals, dahi set and glossy,
+// kesar a tangle of crimson threads, elaichi a coarse green-brown chura.
+// ---------------------------------------------------------------------------
+
+/** A lumpy heap filling a katori. */
+function heap(material, { height = 0.7, lump = 0.05 } = {}) {
+  const geo = new THREE.SphereGeometry(0.146, 28, 16);
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const z = pos.getZ(i);
+    const n = 1 + lump * (Math.sin(x * 61 + z * 37) * Math.cos(z * 53 - x * 17) + 0.5 * Math.sin(y * 90 + x * 40));
+    pos.setXYZ(i, x * n, Math.max(y, -0.02) * n, z * n);
+  }
+  geo.computeVertexNormals();
+  const m = mesh(geo, material);
+  m.scale.y = height;
+  m.position.y = 0.1;
+  return m;
+}
+
+/** Scatter small pieces over the top of a heap, as one instanced mesh. */
+function scatter(geo, material, count, colors, size, { height = 0.7, flat = 1 } = {}) {
+  const inst = new THREE.InstancedMesh(geo, material, count);
+  const m4 = new THREE.Matrix4();
+  const q = new THREE.Quaternion();
+  const e = new THREE.Euler();
+  const c = new THREE.Color();
+  for (let i = 0; i < count; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const up = 0.12 + Math.random() * 0.88; // upper part of the dome only
+    const r = Math.sqrt(1 - up * up) * 0.15;
+    e.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
+    q.setFromEuler(e);
+    const s = size * (0.6 + Math.random() * 0.8);
+    m4.compose(V3(Math.cos(a) * r, 0.1 + up * 0.148 * height, Math.sin(a) * r), q, V3(s, s * flat, s));
+    inst.setMatrixAt(i, m4);
+    inst.setColorAt(i, c.set(colors[Math.floor(Math.random() * colors.length)]));
+  }
+  inst.instanceColor.needsUpdate = true;
+  inst.castShadow = false;
+  return inst;
+}
+
+const saffronCurve = (bend) => new THREE.QuadraticBezierCurve3(V3(-0.5, 0, 0), V3(0, bend, bend * 0.4), V3(0.5, 0, 0));
+let saffronGeos = null;
+/** One saffron thread (unit length): slender, curled, flared at one end. */
+export function saffronThread() {
+  if (!saffronGeos) {
+    saffronGeos = [0.12, 0.3, -0.22].map((b) => {
+      const g = new THREE.TubeGeometry(saffronCurve(b), 10, 0.035, 5);
+      const pos = g.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const t = pos.getX(i) + 0.5; // 0 at the pale stem, 1 at the flared tip
+        const k = 0.45 + 0.9 * t * t;
+        pos.setY(i, pos.getY(i) * k);
+        pos.setZ(i, pos.getZ(i) * k);
+      }
+      g.computeVertexNormals();
+      return g;
+    });
+  }
+  const m = new THREE.Mesh(
+    saffronGeos[Math.floor(Math.random() * 3)],
+    mat.color(Math.random() < 0.2 ? 0xd9480f : Math.random() < 0.5 ? 0xa3140a : 0x8c0f08, 0.55),
+  );
+  return m;
+}
+
+const granuleGeo = new THREE.BoxGeometry(1, 1, 1);
+
+function makeContents(content) {
+  if (content === 'maida') {
+    // fine flour: matt, soft, slightly warm white
+    return heap(
+      new THREE.MeshStandardMaterial({ color: 0xfbf5e6, roughness: 1, normalMap: surf.rough([5, 5], 1.2, 23), normalScale: new THREE.Vector2(0.5, 0.5) }),
+      { height: 0.75, lump: 0.035 },
+    );
+  }
+  if (content === 'sugar') {
+    const g = new THREE.Group();
+    g.add(heap(new THREE.MeshStandardMaterial({ color: 0xf6f6f2, roughness: 0.55 }), { height: 0.68, lump: 0.02 }));
+    // the crystals that catch the light
+    g.add(
+      scatter(
+        granuleGeo,
+        new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.08, metalness: 0, clearcoat: 1, envMapIntensity: 1.6 }),
+        420,
+        [0xffffff, 0xfafcff, 0xf4f4f0],
+        0.011,
+        { height: 0.68 },
+      ),
+    );
+    return g;
+  }
+  if (content === 'dahi') {
+    // set curd: a glossy low dome with a soft peak where the spoon lifted
+    const g = new THREE.Group();
+    const m = new THREE.MeshPhysicalMaterial({ color: 0xfffdf3, roughness: 0.28, clearcoat: 0.5, clearcoatRoughness: 0.3 });
+    const dome = mesh(new THREE.SphereGeometry(0.152, 28, 12, 0, Math.PI * 2, 0, Math.PI / 2), m, { shadow: false });
+    dome.scale.y = 0.2;
+    dome.position.y = 0.098;
+    const peak = mesh(new THREE.ConeGeometry(0.045, 0.05, 16), m, { shadow: false });
+    peak.position.set(0.03, 0.135, -0.02);
+    peak.rotation.z = -0.25;
+    g.add(dome, peak);
+    return g;
+  }
+  if (content === 'kesar') {
+    const g = new THREE.Group();
+    for (let i = 0; i < 46; i++) {
+      const t = saffronThread();
+      const a = Math.random() * Math.PI * 2;
+      const r = Math.sqrt(Math.random()) * 0.095;
+      t.scale.setScalar(0.075 + Math.random() * 0.04);
+      t.position.set(Math.cos(a) * r, 0.098 + Math.random() * 0.035, Math.sin(a) * r);
+      t.rotation.set((Math.random() - 0.5) * 0.7, Math.random() * Math.PI * 2, (Math.random() - 0.5) * 0.7);
+      g.add(t);
+    }
+    return g;
+  }
+  if (content === 'elaichi') {
+    // crushed cardamom: dark seeds, green husk, pale dust
+    const g = new THREE.Group();
+    g.add(heap(new THREE.MeshStandardMaterial({ color: 0x8a7b52, roughness: 1 }), { height: 0.55, lump: 0.06 }));
+    g.add(
+      scatter(granuleGeo, new THREE.MeshStandardMaterial({ roughness: 0.9 }), 900, [0x2a1f15, 0x3d2c1d, 0x5b4630, 0x9fb35c, 0xb4c27a, 0xc9b98a], 0.0065, {
+        height: 0.55,
+        flat: 0.5,
+      }),
+    );
+    return g;
+  }
+  return null;
+}
+
+// A small brass katori with something in it: 'maida' | 'dahi' | 'sugar' | 'kesar' | 'elaichi'
 registerModel('katori', (content = 'maida') => {
   const R = 0.17;
   const H = 0.13;
@@ -122,25 +261,7 @@ registerModel('katori', (content = 'maida') => {
   foot.position.y = 0.005;
   const g = group();
   g.add(body, foot);
-  let fill;
-  if (content === 'maida' || content === 'sugar') {
-    fill = mesh(new THREE.SphereGeometry(0.145, 16, 10), mat.fresh(content === 'sugar' ? 0xffffff : 0xfff8e7, content === 'sugar' ? 0.25 : 0.95));
-    fill.scale.y = 0.7;
-    fill.position.y = 0.1;
-  } else if (content === 'dahi') {
-    fill = disc(0.155, mat.fresh(0xfffef8, 0.25), 0.105);
-  } else if (content === 'kesar') {
-    fill = new THREE.Group();
-    const m = mat.color(COLORS.kesar, 0.6);
-    for (let i = 0; i < 16; i++) {
-      const s = mesh(new THREE.CylinderGeometry(0.006, 0.003, 0.09, 4), m, { shadow: false });
-      const a = Math.random() * Math.PI * 2;
-      const r = Math.random() * 0.09;
-      s.position.set(Math.cos(a) * r, 0.1 + Math.random() * 0.02, Math.sin(a) * r);
-      s.rotation.set(Math.PI / 2 + (Math.random() - 0.5) * 0.5, 0, Math.random() * Math.PI);
-      fill.add(s);
-    }
-  }
+  const fill = makeContents(content);
   if (fill) g.add(fill);
   g.userData.parts = { fill };
   g.userData.keep = fill ? [fill] : [];
@@ -155,7 +276,10 @@ registerModel('lota', () => {
     ),
     mat.brassDouble(),
   );
-  const water = disc(0.12, mat.liquid(0x9ad7ee, 0.9), 0.36);
+  // clear water: you see the brass through it
+  const water = disc(0.12, mat.liquid(0x86bfd6, 0.5), 0.36);
+  water.material.envMapIntensity = 0.3;
+  water.material.roughness = 0.03;
   const g = group({ water }, [water]);
   g.add(body, water);
   return g;
@@ -410,22 +534,123 @@ registerModel('jhari', () => {
   return g;
 });
 
+const tulsiLeafTex = () =>
+  canvasTexOnce('tulsiLeaf', 128, 256, (g, w, h) => {
+    // ovate leaf, toothed edge, pointed tip (tip at the top of the canvas)
+    const cx = w / 2;
+    const edge = (t, side) => {
+      const half = w * 0.46 * Math.pow(Math.sin(Math.PI * Math.pow(t, 0.8)), 0.75);
+      const tooth = 1 - 0.09 * Math.abs(Math.sin(t * Math.PI * 9));
+      return cx + side * half * tooth;
+    };
+    g.beginPath();
+    g.moveTo(cx, h * 0.985);
+    for (let i = 0; i <= 90; i++) g.lineTo(edge(i / 90, 1), h * (0.985 - 0.97 * (i / 90)));
+    for (let i = 90; i >= 0; i--) g.lineTo(edge(i / 90, -1), h * (0.985 - 0.97 * (i / 90)));
+    g.closePath();
+    const grd = g.createLinearGradient(0, 0, w, 0);
+    grd.addColorStop(0, '#2f7d32');
+    grd.addColorStop(0.5, '#4fa046');
+    grd.addColorStop(1, '#2a722e');
+    g.fillStyle = grd;
+    g.fill();
+    g.save();
+    g.clip();
+    // veins
+    g.strokeStyle = 'rgba(200,235,170,0.75)';
+    g.lineWidth = 3;
+    g.beginPath();
+    g.moveTo(cx, h);
+    g.lineTo(cx, h * 0.04);
+    g.stroke();
+    g.lineWidth = 1.6;
+    g.strokeStyle = 'rgba(190,228,160,0.6)';
+    for (let i = 1; i <= 7; i++) {
+      const y = h * (0.95 - i * 0.115);
+      for (const sd of [-1, 1]) {
+        g.beginPath();
+        g.moveTo(cx, y);
+        g.quadraticCurveTo(cx + sd * w * 0.22, y - h * 0.035, cx + sd * w * 0.44, y - h * 0.11);
+        g.stroke();
+      }
+    }
+    // darker toward the edge, a soft sheen in the middle
+    const sh = g.createRadialGradient(cx, h * 0.5, w * 0.1, cx, h * 0.5, w * 0.6);
+    sh.addColorStop(0, 'rgba(255,255,255,0.10)');
+    sh.addColorStop(1, 'rgba(0,40,0,0.28)');
+    g.fillStyle = sh;
+    g.fillRect(0, 0, w, h);
+    g.restore();
+  });
+
+const texCache = {};
+function canvasTexOnce(key, w, h, draw) {
+  if (!texCache[key]) {
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    draw(c.getContext('2d'), w, h);
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = 4;
+    texCache[key] = t;
+  }
+  return texCache[key];
+}
+
+let tulsiLeafGeo = null;
+/** One tulsi leaf lying along +x from its stalk, gently cupped and drooping. */
+function tulsiLeaf(len) {
+  if (!tulsiLeafGeo) {
+    const g = new THREE.PlaneGeometry(0.68, 1, 6, 10);
+    g.translate(0, 0.5, 0);
+    const pos = g.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const y = pos.getY(i);
+      pos.setZ(i, x * x * 0.9 - y * y * 0.22 + 0.06 * Math.sin(y * 9) * Math.abs(x));
+    }
+    g.computeVertexNormals();
+    g.rotateX(-Math.PI / 2); // lie flat, tip toward -z
+    g.rotateY(-Math.PI / 2); // tip toward +x
+    tulsiLeafGeo = g;
+  }
+  const m = new THREE.Mesh(
+    tulsiLeafGeo,
+    new THREE.MeshStandardMaterial({ map: tulsiLeafTex(), alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.6 }),
+  );
+  m.scale.setScalar(len);
+  return m;
+}
+
+// Tulsi dal: a sprig with paired leaves and the manjari (flower spike) on top.
 registerModel('tulsi', () => {
   const g = group();
-  const m = mat.color(0x3f9142, 0.7);
-  for (const [x, r] of [
-    [-0.035, 0.35],
-    [0.035, -0.35],
+  const stemM = mat.color(0x5a7d3a, 0.7);
+  const stem = mesh(
+    new THREE.TubeGeometry(new THREE.QuadraticBezierCurve3(V3(0, 0.004, 0.05), V3(0, 0.012, 0), V3(0, 0.02, -0.05)), 8, 0.0035, 5),
+    stemM,
+    { shadow: false },
+  );
+  g.add(stem);
+  // two pairs of leaves, the upper pair smaller and turned a quarter
+  for (const [z, len, turn, lift] of [
+    [0.012, 0.085, 0, 0.25],
+    [-0.026, 0.055, Math.PI / 2 - 0.5, 0.45],
   ]) {
-    const leaf = mesh(new THREE.SphereGeometry(0.045, 10, 6), m, { shadow: false });
-    leaf.scale.set(1, 0.12, 0.6);
-    leaf.position.set(x, 0.008, 0);
-    leaf.rotation.y = r;
-    g.add(leaf);
+    for (const side of [0, Math.PI]) {
+      const leaf = tulsiLeaf(len);
+      leaf.position.set(0, 0.012, z);
+      leaf.rotation.set(0, side + turn, lift);
+      g.add(leaf);
+    }
   }
-  const bud = mesh(new THREE.SphereGeometry(0.012, 6, 5), mat.color(0x8e5ea2, 0.6), { shadow: false });
-  bud.position.y = 0.014;
-  g.add(bud);
+  // manjari: a little spike of purple-green buds
+  for (let i = 0; i < 7; i++) {
+    const b = mesh(new THREE.SphereGeometry(0.0055 - i * 0.0004, 6, 5), mat.color(i % 2 ? 0x7b4f9a : 0x6c8f45, 0.6), { shadow: false });
+    b.position.set(Math.sin(i * 2.4) * 0.004, 0.022 + i * 0.002, -0.05 - i * 0.007);
+    g.add(b);
+  }
   return g;
 });
 
@@ -538,10 +763,29 @@ registerModel('ghanta', () => {
 // A single green cardamom pod.
 registerModel('elaichi', () => {
   const g = group();
-  const pod = mesh(new THREE.SphereGeometry(0.05, 10, 8), mat.color(COLORS.elaichi, 0.75));
-  pod.scale.set(1.5, 0.85, 0.85);
-  pod.position.y = 0.042;
-  g.add(pod);
+  const pts = [];
+  for (let i = 0; i <= 14; i++) {
+    const t = i / 14;
+    pts.push(V2(Math.max(0.0001, 0.036 * Math.pow(Math.sin(Math.PI * t), 0.8) * (1 - 0.25 * t)), (t - 0.5) * 0.15));
+  }
+  const geo = new THREE.LatheGeometry(pts, 36);
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const z = pos.getZ(i);
+    const a = Math.atan2(z, x);
+    const k = 1 + 0.16 * Math.cos(3 * a) + 0.035 * Math.cos(18 * a); // three sides, fine ribs
+    pos.setX(i, x * k);
+    pos.setZ(i, z * k);
+  }
+  geo.computeVertexNormals();
+  const pod = mesh(geo, mat.color(0x9db863, 0.7));
+  pod.rotation.z = Math.PI / 2;
+  pod.position.y = 0.04;
+  const tip = mesh(new THREE.CylinderGeometry(0.003, 0.006, 0.02, 5), mat.color(0xc8b98a, 0.8), { shadow: false });
+  tip.rotation.z = Math.PI / 2;
+  tip.position.set(-0.082, 0.04, 0);
+  g.add(pod, tip);
   return g;
 });
 
