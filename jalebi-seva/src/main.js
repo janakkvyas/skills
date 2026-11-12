@@ -295,7 +295,7 @@ async function main() {
     hud,
     world,
     cam,
-    state: { jalebis: [], jalebiAt: null, pile: null, potFx: null, offered: false, served: null },
+    state: { jalebis: [], made: 0, potCount: 0, inTokri: 0, pile: null, potFx: null, offered: false, served: null },
     say(key) {
       lastSaid = key;
       hud.banner(key);

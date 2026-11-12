@@ -543,18 +543,23 @@ export function jalebiPile(count, radius, baseY = 0) {
   const q = new THREE.Quaternion();
   const e = new THREE.Euler();
   const slots = [];
-  for (let i = 0; i < count; i++) {
-    const layer = Math.floor(i / 6);
-    const k = i % 6;
-    const a = (k / 6) * Math.PI * 2 + layer * 0.5;
-    const r = k === 0 && layer % 2 ? 0 : radius * (0.75 - layer * 0.12);
-    const p = V3(Math.cos(a) * r, baseY + layer * 0.03, Math.sin(a) * r);
-    e.set((Math.random() - 0.5) * 0.35, Math.random() * 6, (Math.random() - 0.5) * 0.35);
-    q.setFromEuler(e);
-    slots.push({ p, q: q.clone() });
-    m.compose(p, q, V3(0, 0, 0)); // hidden until revealed
-    inst.setMatrixAt(i, m);
+  // Rings that get smaller as the heap rises, so it grows into a mound.
+  for (let layer = 0; slots.length < count; layer++) {
+    const r = radius * Math.max(0, 0.82 - layer * 0.11);
+    const n = r < 0.06 ? 1 : 1 + Math.floor((2 * Math.PI * r) / 0.17);
+    for (let k = 0; k < n && slots.length < count; k++) {
+      const a = (k / Math.max(1, n - 1)) * Math.PI * 2 + layer * 0.7;
+      const rr = k === 0 ? Math.min(r, 0.04) : r;
+      const p = V3(Math.cos(a) * rr, baseY + layer * 0.034, Math.sin(a) * rr);
+      e.set((Math.random() - 0.5) * 0.35, Math.random() * 6, (Math.random() - 0.5) * 0.35);
+      q.setFromEuler(e);
+      slots.push({ p, q: q.clone() });
+    }
   }
+  slots.forEach((s, i) => {
+    m.compose(s.p, s.q, V3(0, 0, 0)); // hidden until revealed
+    inst.setMatrixAt(i, m);
+  });
   inst.userData.slots = slots;
   inst.userData.shown = 0;
   inst.userData.reveal = (n) => {
@@ -563,8 +568,16 @@ export function jalebiPile(count, radius, baseY = 0) {
       m.compose(slots[i].p, slots[i].q, V3(1, 1, 1));
       inst.setMatrixAt(i, m);
     }
-    inst.userData.shown = to;
+    inst.userData.shown = Math.max(inst.userData.shown, to);
     inst.instanceMatrix.needsUpdate = true;
+  };
+  /** Top of the heap, in the basket's own units. */
+  inst.userData.top = () => {
+    const n = inst.userData.shown;
+    if (!n) return baseY;
+    let top = baseY;
+    for (let i = 0; i < n; i++) top = Math.max(top, slots[i].p.y);
+    return top + 0.045;
   };
   return inst;
 }

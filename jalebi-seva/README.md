@@ -19,18 +19,18 @@ Fourteen little steps, each one a tap, a stir or a swipe:
 | 2 | चाशनी बनाओ | Sugar and water into the pateela, light the chulha, stir |
 | 3 | केसर डालो | Three pinches of kesar – the syrup turns golden |
 | 4 | इलायची डालो | Pop the pods in |
-| 5 | जलेबी बनाओ | **Draw** jalebis in the hot ghee with a finger; they fry golden |
-| 6 | चाशनी में डुबाओ | Send each jalebi into the syrup |
-| 7 | पातल और टोकरी | Lay them on the paatal, fill the tokri |
-| 8 | भोग धरो | Place the paatal before Shreenathji, then the tulsi and the jhari |
+| 5 | जलेबी बनाओ | Touch the hot ghee: every touch pipes a perfect jalebi, as many as the child likes. Touch the chaasni to move on |
+| 6 | चाशनी में डुबाओ | Send the jalebis into the syrup (when the kadhai is full, the oldest hop in by themselves) |
+| 7 | टोकरी में रखो | Scoop every jalebi from the chaasni into the tokri |
+| 8 | भोग धरो | Place the tokri before Shreenathji, the tulsi on top, then the jhari |
 | 9 | पर्दा लगाओ | Draw the curtains closed |
 | 10 | कीर्तन गाओ | Play the pakhawaj, jhanjh and ghanti along with the music |
 | 11 | पर्दा खोलो | Open the curtains – darshan, shankh, flowers |
-| 12 | भोग सराओ | Take the bhog back; it is prasad now |
+| 12 | भोग सराओ | Take the tokri back; it is prasad now |
 | 13 | पातल परोसो | Lay a paatal for each Vaishnav and serve the jalebi |
 | 14 | सबके साथ खाओ | Eat together – जय श्री कृष्ण! |
 
-The jalebis that are offered and eaten are the very ones the child drew.
+Every jalebi the child makes goes into the one tokri that is offered: make three or thirty, they are all there.
 
 ### Made for very small hands
 
@@ -47,7 +47,7 @@ The jalebis that are offered and eaten are the very ones the child drew.
 
 ## Install on an Android phone or tablet
 
-1. Copy `release/jalebi-seva-0.1.0.apk` to the phone and open it.
+1. Copy `release/jalebi-seva-0.2.0.apk` to the phone and open it.
 2. Android will ask to allow installing from this source – allow it, then
    install. (Play Protect may ask to scan an app it has not seen; that is fine.)
 3. Open **Jalebi Seva**. It plays in landscape, full screen.
@@ -72,9 +72,10 @@ speech off, skip a step, or start over.
 ## Make it your own
 
 - **Your own 3D models (Tripo AI).** Every object is a slot that a `.glb`
-  can replace – above all Shreenathji's swaroop. See
-  [docs/TRIPO_ASSETS.md](docs/TRIPO_ASSETS.md); reference images and sources
-  are in [docs/REFERENCE_PACK.md](docs/REFERENCE_PACK.md).
+  can replace – above all Shreenathji's swaroop. Start with the easy guide,
+  [docs/TRIPO_EASY_HINDI.md](docs/TRIPO_EASY_HINDI.md); the full list is in
+  [docs/TRIPO_ASSETS.md](docs/TRIPO_ASSETS.md), and reference images and
+  sources in [docs/REFERENCE_PACK.md](docs/REFERENCE_PACK.md).
 - **Your own kirtan.** Save a recording as `public/audio/kirtan.mp3` and it
   plays during the kirtan and darshan steps instead of the built-in tune.
 - **Your own pichwai.** A photo in `public/models/`, named under `textures`

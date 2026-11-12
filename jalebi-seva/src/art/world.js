@@ -22,7 +22,7 @@ export const AREAS = {
 export const STATIONS = {
   prep: { pos: V3(-3.6, 1.95, 2.55), look: V3(-3.6, 0.12, 0.25) },
   chaasni: { pos: V3(0, 2.0, 2.75), look: V3(0, 0.3, 0.3) },
-  kadhai: { pos: V3(2.0, 2.15, 1.95), look: V3(2.0, 0.32, 0.0) },
+  kadhai: { pos: V3(1.25, 2.3, 2.45), look: V3(1.25, 0.3, 0.1) },
   dip: { pos: V3(1.0, 2.35, 3.15), look: V3(1.0, 0.3, 0.0) },
   plate: { pos: V3(0, 2.35, 3.35), look: V3(0, 0.22, 0.55) },
   mandir: { pos: V3(40, 1.66, 3.35), look: V3(40, 1.52, -2.0) },
@@ -169,16 +169,13 @@ function buildKitchen() {
   bag.visible = false;
   g.add(chulhaB, kadhai, bag);
 
-  // --- serving ware (appears later) ---
-  const paatal = make('paatal');
-  paatal.position.set(-0.8, 0, 1.3);
-  paatal.visible = false;
+  // --- the tokri the jalebis go into (appears later) ---
   const tokri = make('tokri');
-  tokri.position.set(0.85, 0, 1.3);
+  tokri.position.set(0.55, 0, 1.35);
   tokri.visible = false;
-  g.add(paatal, tokri);
+  g.add(tokri);
 
-  return { group: g, bowl, maida, dahi, paani, spoon, chulhaA, pot, sugar, paani2, kesar, thali, pods, chulhaB, kadhai, bag, paatal, tokri };
+  return { group: g, bowl, maida, dahi, paani, spoon, chulhaA, pot, sugar, paani2, kesar, thali, pods, chulhaB, kadhai, bag, tokri };
 }
 
 // ---------------------------------------------------------------------------

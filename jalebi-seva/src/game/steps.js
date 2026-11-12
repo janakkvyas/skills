@@ -242,10 +242,15 @@ function stir(ctx, { center, radius, spoon, swirl = null, need = 2.3, onProgress
 
 // ---------------------------------------------------------------------------
 // Jalebi bookkeeping
+//
+// Every touch in the ghee makes one perfect jalebi, as many as the child
+// likes. Each jalebi is tracked from the kadhai, to the chaasni, to the
+// tokri; the tokri (and everything in it) is what is offered as bhog.
 // ---------------------------------------------------------------------------
 
-const JALEBI_COUNT = 5;
-const NORMAL_R = 0.125;
+const DEFAULT_COUNT = 5; // made for a step reached by skipping
+const POT_VISIBLE = 40; // more than this in the pot sink out of sight
+const TOKRI_ON_CHOWKI = 0.74;
 
 function kadhaiSurface(k) {
   const c = worldPos(k.kadhai);
@@ -263,15 +268,22 @@ const ring = (c, r, n, y = 0, phase = 0) =>
     return V3(c.x + Math.cos(a) * r, c.y + y, c.z + Math.sin(a) * r);
   });
 
+/** Seven places in the kadhai: one in the middle, six around it. */
 const kadhaiSlots = (k) => {
   const { center } = kadhaiSurface(k);
-  return [center.clone(), ...ring(center, 0.37, 4, 0, Math.PI / 4)];
+  return [center.clone(), ...ring(center, 0.36, 6, 0, Math.PI / 6)];
 };
-const potSlots = (k) => {
+
+/** The i-th place in the chaasni: rings of five, heaping up. */
+function potSlot(k, i) {
   const c = potSurface(k);
-  return [c.clone(), ...ring(c, 0.27, 4, 0, Math.PI / 4)];
-};
-const paatalSlots = (paatal) => ring(worldPos(paatal), 0.23, 5, 0.03, -Math.PI / 2);
+  const layer = Math.floor(i / 5);
+  const s = i % 5;
+  const y = c.y + layer * 0.028;
+  if (s === 0) return V3(c.x, y, c.z);
+  const a = layer * 0.6 + ((s - 1) / 4) * Math.PI * 2 + Math.PI / 4;
+  return V3(c.x + Math.cos(a) * 0.27, y, c.z + Math.sin(a) * 0.27);
+}
 
 function setStage(j, stage) {
   const m = j.material;
@@ -280,30 +292,46 @@ function setStage(j, stage) {
   m.metalness = stage === 'syrup' ? 0.15 : 0;
 }
 
-/** Make sure five jalebis exist and sit where this step expects them. */
+function newJalebi(ctx, pos, stage) {
+  const k = ctx.world.kitchen;
+  const st = ctx.state;
+  const material = jalebiMaterial(stage);
+  const variant = st.made % 3;
+  const obj = new THREE.Mesh(jalebiGeometry(variant), material);
+  obj.castShadow = true;
+  obj.position.copy(pos);
+  obj.rotation.y = Math.random() * Math.PI * 2;
+  k.group.add(obj);
+  const j = { obj, material, variant, where: null, fried: stage !== 'raw', born: st.made++ };
+  st.jalebis.push(j);
+  return j;
+}
+
+const jalebisIn = (ctx, where) => ctx.state.jalebis.filter((j) => j.where === where);
+
+/** Put a jalebi straight into the chaasni (no animation). */
+function placeInPot(ctx, j) {
+  const k = ctx.world.kitchen;
+  const idx = ctx.state.potCount++;
+  j.where = 'pot';
+  j.potIndex = idx;
+  j.obj.position.copy(potSlot(k, idx));
+  j.obj.visible = idx < POT_VISIBLE;
+  setStage(j, 'syrup');
+}
+
+/** Make sure there are jalebis where a step expects them. */
 function ensureJalebis(ctx, where) {
   const k = ctx.world.kitchen;
   const st = ctx.state;
-  if (st.jalebis.length < JALEBI_COUNT) {
-    for (let i = st.jalebis.length; i < JALEBI_COUNT; i++) {
-      const material = jalebiMaterial('fried');
-      const obj = new THREE.Mesh(jalebiGeometry(i % 3), material);
-      obj.castShadow = true;
-      k.group.add(obj);
-      st.jalebis.push({ obj, material, radius: NORMAL_R });
+  if (!st.jalebis.length && !st.inTokri) {
+    const slots = kadhaiSlots(k);
+    for (let i = 0; i < DEFAULT_COUNT; i++) {
+      const j = newJalebi(ctx, slots[i], 'fried');
+      j.where = 'kadhai';
     }
-    st.jalebiAt = null;
   }
-  if (st.jalebiAt === where) return;
-  const slots = where === 'kadhai' ? kadhaiSlots(k) : where === 'pot' ? potSlots(k) : paatalSlots(k.paatal);
-  st.jalebis.forEach((j, i) => {
-    k.group.attach(j.obj);
-    j.obj.position.copy(slots[i]);
-    j.obj.scale.setScalar(NORMAL_R / j.radius);
-    setStage(j, where === 'kadhai' ? 'fried' : 'syrup');
-    if (where === 'paatal') k.paatal.attach(j.obj);
-  });
-  st.jalebiAt = where;
+  if (where === 'pot') jalebisIn(ctx, 'kadhai').forEach((j) => placeInPot(ctx, j));
 }
 
 function ensureSyrup(ctx) {
@@ -318,20 +346,38 @@ function ensureSyrup(ctx) {
 function ensureTokri(ctx) {
   const k = ctx.world.kitchen;
   if (!ctx.state.pile) {
-    const pile = jalebiPile(18, 0.3, k.tokri.userData.surfaceY ?? 0.03);
+    const pile = jalebiPile(80, 0.34, (k.tokri.userData.surfaceY ?? 0.03) + 0.05);
     k.tokri.add(pile);
     ctx.state.pile = pile;
   }
   return ctx.state.pile;
 }
 
-function ensureServingWare(ctx, { filled }) {
-  const k = ctx.world.kitchen;
-  k.paatal.visible = true;
-  k.tokri.visible = true;
+/** One more jalebi lands in the tokri. */
+function addToTokri(ctx, j) {
   const pile = ensureTokri(ctx);
-  if (filled) pile.userData.reveal(18);
+  ctx.state.inTokri++;
+  pile.userData.reveal(pile.userData.shown + 1);
+  if (j) {
+    j.where = 'tokri';
+    j.obj.removeFromParent();
+    j.material.dispose();
+    ctx.state.jalebis = ctx.state.jalebis.filter((x) => x !== j);
+  }
 }
+
+/** For steps after the tokri is filled: every jalebi made is in it. */
+function ensureTokriFilled(ctx) {
+  const k = ctx.world.kitchen;
+  k.tokri.visible = true;
+  ensureTokri(ctx);
+  [...ctx.state.jalebis].forEach((j) => addToTokri(ctx, j));
+  ctx.state.potCount = 0;
+  while (ctx.state.inTokri < DEFAULT_COUNT) addToTokri(ctx, null);
+}
+
+/** Height of the heap inside the tokri, in the tokri's own units. */
+const tokriTop = (ctx) => ensureTokri(ctx).userData.top();
 
 /** Hold something in front of the camera, as if in the halwai's hands. */
 function hold(ctx, obj, { x = 0, y = -0.47, z = -1.4, tilt = 0.55, scale = null } = {}) {
@@ -553,6 +599,52 @@ async function elaichi(ctx) {
 // 5. Jalebi talna (pipe and fry)
 // ---------------------------------------------------------------------------
 
+/** Pipe a jalebi into place: the spiral draws itself as the bag goes round. */
+async function pipeIn(ctx, j, bag, dur = 0.9) {
+  const shared = j.obj.geometry;
+  const geo = shared.clone();
+  j.obj.geometry = geo;
+  const total = geo.index.count;
+  const path = geo.parameters.path;
+  geo.setDrawRange(0, 0);
+  const tip = new THREE.Vector3();
+  await tween(
+    dur,
+    (k) => {
+      geo.setDrawRange(0, Math.floor((k * total) / 3) * 3);
+      path.getPoint(Math.min(1, k), tip);
+      tip.y += 0.06;
+      j.obj.localToWorld(tip);
+      bag.parent.worldToLocal(tip);
+      bag.position.copy(tip);
+    },
+    ease.linear,
+  );
+  j.obj.geometry = shared;
+  geo.dispose();
+}
+
+/** A fried jalebi hops from the kadhai into the chaasni. */
+async function dipIntoPot(ctx, j) {
+  const k = ctx.world.kitchen;
+  const idx = ctx.state.potCount++;
+  j.where = 'pot';
+  j.potIndex = idx;
+  const slot = potSlot(k, idx);
+  ctx.audio.whoosh();
+  tween(0.75, (t) => (j.obj.rotation.y += 0.15), ease.linear);
+  await arcTo(j.obj, slot, 1.0, 0.75);
+  ctx.audio.plop();
+  ctx.fx.splash(slot, COLORS.syrupKesar, 9);
+  j.material.roughness = 0.16;
+  j.material.metalness = 0.15;
+  await Promise.all([
+    lerpColor(j.material, COLORS.jalebiSyrup, 0.8),
+    tween(0.8, (t) => (j.obj.position.y = slot.y - Math.sin(t * Math.PI) * 0.03)),
+  ]);
+  if (idx >= POT_VISIBLE) j.obj.visible = false; // sinks under the others
+}
+
 async function fry(ctx) {
   const k = ctx.world.kitchen;
   const st = ctx.state;
@@ -563,175 +655,131 @@ async function fry(ctx) {
   const { center, R } = kadhaiSurface(k);
   const y = center.y;
   const stopBubbles = ctx.fx.bubbles(center, R, 0xfff7c2, 9);
-  k.bag.position.set(center.x, y + 0.05, center.z);
+  k.bag.position.set(center.x, y + 0.06, center.z);
   k.bag.rotation.set(0, 0, 0);
   await popIn(ctx, k.bag);
   ctx.say('fry');
 
-  const MAXLEN = 1.15;
-  const MINLEN = 0.5;
-  const spots = [
-    [0, 0],
-    [-0.3, -0.22],
-    [0.3, -0.22],
-    [-0.28, 0.26],
-    [0.28, 0.26],
-  ];
-  // Start afresh if this step is replayed.
-  st.jalebis.forEach((j) => j.obj.parent && j.obj.parent.remove(j.obj));
-  st.jalebis = [];
-  st.jalebiAt = 'kadhai';
-  let started = 0;
-  let fried = 0;
-  let cur = null;
-  let finishAll;
-  const allDone = new Promise((r) => (finishAll = r));
+  // Start afresh in the kadhai if this step is replayed.
+  jalebisIn(ctx, 'kadhai').forEach((j) => {
+    j.obj.removeFromParent();
+    st.jalebis = st.jalebis.filter((x) => x !== j);
+  });
 
-  const clamp = (p) => {
-    const dx = p.x - center.x;
-    const dz = p.z - center.z;
-    const d = Math.hypot(dx, dz);
-    if (d > R) {
-      p.x = center.x + (dx / d) * R;
-      p.z = center.z + (dz / d) * R;
-    }
-    p.y = y;
-    return p;
+  const slots = kadhaiSlots(k);
+  const occupant = slots.map(() => null);
+  const frying = new Set();
+  let fried = 0;
+  let ready = false;
+  let finished = false;
+  let finishFry;
+  const allDone = new Promise((r) => (finishFry = r));
+
+  const freeSlotNear = (p) => {
+    let best = -1;
+    let bestD = Infinity;
+    slots.forEach((s, i) => {
+      if (occupant[i]) return;
+      const d = s.distanceTo(p);
+      if (d < bestD) {
+        bestD = d;
+        best = i;
+      }
+    });
+    return best;
   };
 
-  const setHint = () => {
-    if (started >= JALEBI_COUNT) return ctx.hint.clear();
-    const [sx, sz] = spots[started];
+  // The kadhai is full: the oldest fried jalebi goes into the chaasni.
+  const makeRoom = () => {
+    let best = -1;
+    occupant.forEach((j, i) => {
+      if (j && j.fried && (best < 0 || j.born < occupant[best].born)) best = i;
+    });
+    if (best < 0) return -1;
+    const j = occupant[best];
+    occupant[best] = null;
+    dipIntoPot(ctx, j);
+    return best;
+  };
+
+  const spiralHint = () => {
+    const i = freeSlotNear(center);
+    const c = slots[i < 0 ? 0 : i];
     const pts = [];
-    for (let i = 0; i <= 26; i++) {
-      const t = i / 26;
+    for (let n = 0; n <= 26; n++) {
+      const t = n / 26;
       const a = t * Math.PI * 4.6;
-      const r = 0.02 + 0.11 * t;
-      pts.push(V3(center.x + sx + Math.cos(a) * r, y, center.z + sz + Math.sin(a) * r));
+      const r = 0.02 + 0.1 * t;
+      pts.push(V3(c.x + Math.cos(a) * r, y, c.z + Math.sin(a) * r));
     }
     ctx.hint.set({ type: 'path', points: pts }, 1.8);
   };
 
-  const rebuild = (s) => {
-    const pts = s.pts.length >= 2 ? s.pts : [s.pts[0], s.pts[0].clone().add(V3(0.014, 0, 0.004))];
-    const geo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), Math.max(6, pts.length * 3), 0.024, 6);
-    s.obj.geometry.dispose();
-    s.obj.geometry = geo;
-  };
-
-  const begin = (p) => {
-    const material = jalebiMaterial('raw');
-    const obj = new THREE.Mesh(new THREE.BufferGeometry(), material);
-    obj.castShadow = true;
-    k.group.add(obj);
-    cur = { obj, material, pts: [p.clone()], len: 0 };
-    rebuild(cur);
-    started++;
-    setHint();
-  };
-
-  const extend = (s, p) => {
-    const last = s.pts[s.pts.length - 1];
-    const d = p.distanceTo(last);
-    if (d < 0.014) return false;
-    s.pts.push(p.clone());
-    s.len += d;
-    if (s.pts.length % 3 === 0) ctx.audio.tone({ freq: 480 + s.len * 420, dur: 0.05, vol: 0.06, type: 'triangle' });
-    return true;
-  };
-
-  const finish = (s) => {
-    // re-centre the mesh on its own middle so it can be carried around later
-    const c0 = V3(0, 0, 0);
-    s.pts.forEach((p) => c0.add(p));
-    c0.divideScalar(s.pts.length);
-    let radius = 0.05;
-    s.pts.forEach((p) => {
-      p.sub(c0);
-      radius = Math.max(radius, Math.hypot(p.x, p.z) + 0.02);
-    });
-    rebuild(s);
-    s.obj.position.copy(c0);
-    st.jalebis.push({ obj: s.obj, material: s.material, radius });
-    ctx.audio.plop();
-    const stop = ctx.fx.bubbles(c0, radius, 0xffffff, 16);
-    lerpColor(s.material, COLORS.jalebiFried, 2.0).then(() => {
-      stop();
-      s.material.roughness = 0.4;
-      ctx.fx.stars(c0.clone().setY(y + 0.15), 6);
-      ctx.audio.sparkle();
-      if (++fried >= JALEBI_COUNT) finishAll();
-    });
-  };
-
-  // A touch that was too short to be a jalebi curls up into one by itself.
-  const grow = async (s) => {
-    const c = s.pts[s.pts.length - 1].clone();
-    let a = Math.random() * 6.28;
-    let r = 0.012;
-    const start = s.len;
-    const want = MINLEN + 0.4;
-    await tween(
-      0.7,
-      (t, raw) => {
-        let guard = 0;
-        while (s.len < start + (want - start) * raw && guard++ < 200) {
-          a += 0.45;
-          r = Math.min(0.13, r + 0.0065);
-          extend(s, clamp(V3(c.x + Math.cos(a) * r, y, c.z + Math.sin(a) * r)));
-        }
-        rebuild(s);
+  // When a few are done, the child may move on whenever they like by
+  // touching the chaasni; until then (and after) every touch in the ghee
+  // makes another jalebi.
+  let stopPotRing = null;
+  const offerNext = () => {
+    ready = true;
+    ctx.say('fryMore');
+    const potAt = () => worldPos(k.pot).add(V3(0, 0.35, 0));
+    stopPotRing = ctx.fx.attention(potAt, 0.4);
+    ctx.hint.set({ type: 'tap', at: potAt }, 3.5);
+    ctx.input.addTarget(
+      k.pot,
+      async () => {
+        if (finished) return;
+        finished = true;
+        ctx.input.removeTarget(k.pot);
+        ctx.input.onDrag = null;
+        stopPotRing();
+        ctx.hint.clear();
+        boing(k.pot, 0.12);
+        await Promise.all([...frying]);
+        finishFry();
       },
-      ease.linear,
+      { radius: 0.5, offset: V3(0, 0.3, 0) },
     );
-    finish(s);
+  };
+
+  const makeOne = (p) => {
+    let i = freeSlotNear(p);
+    if (i < 0) i = makeRoom();
+    if (i < 0) return; // every place is still frying; the next touch will do
+    const j = newJalebi(ctx, slots[i], 'raw');
+    j.where = 'kadhai';
+    occupant[i] = j;
+    const job = (async () => {
+      await pipeIn(ctx, j, k.bag);
+      ctx.audio.plop();
+      const stop = ctx.fx.bubbles(worldPos(j.obj), 0.13, 0xffffff, 16);
+      await lerpColor(j.material, COLORS.jalebiFried, 1.6);
+      stop();
+      j.material.roughness = 0.4;
+      j.fried = true;
+      ctx.fx.stars(worldPos(j.obj).add(V3(0, 0.15, 0)), 6);
+      ctx.audio.sparkle();
+      fried++;
+      if (fried >= 3 && !ready) offerNext();
+      else if (!ready) spiralHint();
+    })();
+    frying.add(job);
+    job.then(() => frying.delete(job));
   };
 
   ctx.input.onDrag = (ev) => {
     ctx.hint.nudge();
+    if (ev.phase !== 'start') return;
     const hit = ctx.input.pointOnPlane(ev.x, ev.y, y);
-    // A touch well outside the kadhai is not batter in the ghee: lift the bag.
-    const outside = !hit || Math.hypot(hit.x - center.x, hit.z - center.z) > R * 1.3;
-    if (outside) {
-      if (cur) {
-        const s = cur;
-        cur = null;
-        if (s.len < MINLEN) grow(s);
-        else finish(s);
-      }
-      return;
-    }
-    const p = clamp(hit);
-    k.bag.position.set(p.x, y + 0.04, p.z);
-    if (ev.phase === 'end') {
-      if (!cur) return;
-      const s = cur;
-      cur = null;
-      if (s.len < MINLEN) grow(s);
-      else finish(s);
-      return;
-    }
-    if (!cur) {
-      if (started < JALEBI_COUNT) begin(p);
-      return;
-    }
-    if (extend(cur, p)) {
-      rebuild(cur);
-      if (cur.len >= MAXLEN) {
-        const s = cur;
-        cur = null;
-        finish(s);
-      }
-    }
+    if (!hit || Math.hypot(hit.x - center.x, hit.z - center.z) > R * 1.3) return;
+    makeOne(hit);
   };
   const stopAttn = ctx.fx.attention(() => center, R * 0.9);
-  setHint();
+  spiralHint();
 
   await allDone;
-  ctx.input.onDrag = null;
   stopAttn();
   stopBubbles();
-  ctx.hint.clear();
   ctx.audio.sizzle(false);
   await popOut(k.bag);
   await cheer(ctx, center.clone().setY(y + 0.45));
@@ -750,101 +798,80 @@ async function dip(ctx) {
   k.sugar.visible = k.paani2.visible = false;
   await ctx.goto('kitchen', 'dip');
   ctx.say('dip');
-  const slots = potSlots(k);
-  let n = 0;
   await tapAll(
     ctx,
-    ctx.state.jalebis.map((j) => ({
-      obj: j.obj,
-      radius: Math.min(0.22, j.radius),
-      onTap: async () => {
-        const slot = slots[n++];
-        ctx.audio.whoosh();
-        scaleTo(j.obj, NORMAL_R / j.radius, 0.6, ease.inOut);
-        tween(0.75, (t) => (j.obj.rotation.y = t * Math.PI * 2), ease.linear);
-        await arcTo(j.obj, slot, 1.0, 0.75);
-        ctx.audio.plop();
-        ctx.fx.splash(slot, COLORS.syrupKesar, 9);
-        j.material.roughness = 0.16;
-        j.material.metalness = 0.15;
-        await Promise.all([
-          lerpColor(j.material, COLORS.jalebiSyrup, 0.8),
-          tween(0.8, (t) => (j.obj.position.y = slot.y - Math.sin(t * Math.PI) * 0.03)),
-        ]);
-      },
-    })),
+    jalebisIn(ctx, 'kadhai').map((j) => ({ obj: j.obj, radius: 0.16, onTap: () => dipIntoPot(ctx, j) })),
   );
-  ctx.state.jalebiAt = 'pot';
   k.chulhaB.userData.setFire(false);
   await cheer(ctx, potSurface(k).setY(potSurface(k).y + 0.5));
 }
 
 // ---------------------------------------------------------------------------
-// 7. Paatal aur tokri mein rakho
+// 7. Tokri mein rakho
 // ---------------------------------------------------------------------------
 
 async function plate(ctx) {
   const k = ctx.world.kitchen;
+  const st = ctx.state;
   ensureJalebis(ctx, 'pot');
   ensureSyrup(ctx);
   startPotFx(ctx);
   k.sugar.visible = k.paani2.visible = false;
   await ctx.goto('kitchen', 'plate');
-  await Promise.all([popIn(ctx, k.paatal), popIn(ctx, k.tokri)]);
+  ensureTokri(ctx);
+  await popIn(ctx, k.tokri);
   ctx.say('plate');
-  const pile = ensureTokri(ctx);
-  const slots = paatalSlots(k.paatal);
-  const pot = potSurface(k);
-  let n = 0;
-  await tapAll(
-    ctx,
-    ctx.state.jalebis.map((j) => ({
-      obj: j.obj,
-      radius: 0.15,
-      onTap: async () => {
-        const slot = slots[n++];
-        ctx.fx.splash(worldPos(j.obj), COLORS.syrupKesar, 5);
-        ctx.audio.whoosh();
-        tween(0.7, (t) => (j.obj.rotation.y = t * Math.PI * 2), ease.linear);
-        await arcTo(j.obj, slot, 0.8, 0.7);
-        ctx.audio.tap();
-        k.paatal.attach(j.obj);
-        boing(k.paatal, 0.08);
-      },
-    })),
-  );
-  ctx.state.jalebiAt = 'paatal';
 
-  ctx.say('tokri');
-  const tokriTop = worldPos(k.tokri).add(V3(0, 0.12, 0));
-  await tapTimes(
-    ctx,
-    k.tokri,
-    3,
-    async () => {
-      const jobs = [];
-      for (let i = 0; i < 6; i++) {
-        jobs.push(
-          (async () => {
-            await wait(i * 0.09);
-            const m = new THREE.Mesh(jalebiGeometry(0, 'lo'), sharedJalebiMaterial());
-            m.position.copy(pot).add(V3((Math.random() - 0.5) * 0.4, 0, (Math.random() - 0.5) * 0.4));
-            k.group.add(m);
-            tween(0.6, (t) => (m.rotation.y = t * 6), ease.linear);
-            await arcTo(m, tokriTop.clone().add(V3((Math.random() - 0.5) * 0.2, 0, (Math.random() - 0.5) * 0.2)), 0.9, 0.6);
-            k.group.remove(m);
-            pile.userData.reveal(pile.userData.shown + 1);
-            ctx.audio.tap();
-          })(),
-        );
-      }
+  // Each touch on the chaasni (or the tokri) scoops a few jalebis across,
+  // top of the heap first, until the chaasni is empty.
+  await new Promise((resolve) => {
+    let flying = 0;
+    let done = false;
+    const potAt = () => worldPos(k.pot).add(V3(0, 0.35, 0));
+    const stopRing = ctx.fx.attention(potAt, 0.4);
+    const finish = () => {
+      if (done || flying || jalebisIn(ctx, 'pot').length) return;
+      done = true;
+      stopRing();
+      ctx.input.removeTarget(k.pot);
+      ctx.input.removeTarget(k.tokri);
+      ctx.hint.clear();
+      st.potCount = 0;
+      resolve();
+    };
+    const scoop = () => {
+      ctx.hint.nudge();
+      const batch = jalebisIn(ctx, 'pot')
+        .sort((a, b) => b.potIndex - a.potIndex)
+        .slice(0, 4);
+      if (!batch.length) return;
       ctx.audio.whoosh();
-      await Promise.all(jobs);
-    },
-    { radius: 0.42, offset: V3(0, 0.1, 0) },
-  );
+      batch.forEach((j, i) => {
+        j.where = 'flying';
+        flying++;
+        (async () => {
+          await wait(i * 0.1);
+          j.obj.visible = true;
+          ctx.fx.splash(worldPos(j.obj), COLORS.syrupKesar, 4);
+          const to = worldPos(k.tokri).add(V3((Math.random() - 0.5) * 0.25, 0.12, (Math.random() - 0.5) * 0.25));
+          k.group.worldToLocal(to);
+          tween(0.6, () => (j.obj.rotation.y += 0.15), ease.linear);
+          await arcTo(j.obj, to, 0.9, 0.6);
+          addToTokri(ctx, j);
+          boing(k.tokri, 0.06);
+          ctx.audio.tap();
+          flying--;
+          finish();
+        })();
+      });
+    };
+    ctx.input.addTarget(k.pot, scoop, { radius: 0.5, offset: V3(0, 0.3, 0) });
+    ctx.input.addTarget(k.tokri, scoop, { radius: 0.45, offset: V3(0, 0.1, 0) });
+    ctx.hint.set({ type: 'tap', at: potAt });
+    finish();
+  });
   stopPotFx(ctx);
-  await cheer(ctx, worldPos(k.paatal).add(V3(0.8, 0.6, 0)));
+  await cheer(ctx, worldPos(k.tokri).add(V3(0, 0.6, 0)));
 }
 
 // ---------------------------------------------------------------------------
@@ -854,7 +881,7 @@ async function plate(ctx) {
 // Things carried "in the hands" sit low in the view and are shown a little
 // smaller than life so they never hide what they are being carried to.
 const HELD = { x: 0, y: -0.47, z: -1.4, tilt: 0.55 };
-const HELD_SCALE = 0.62;
+const HELD_SCALE = 0.5;
 
 function chowkiSpot(m, dx = 0) {
   return V3(m.chowki.position.x + dx, m.chowki.position.y + m.chowki.userData.surfaceY, m.chowki.position.z);
@@ -877,12 +904,11 @@ function enterMandir(ctx, { curtain }) {
 async function bhog(ctx) {
   const k = ctx.world.kitchen;
   const m = ctx.world.mandir;
-  ensureJalebis(ctx, 'paatal');
-  ensureServingWare(ctx, { filled: true });
+  ensureTokriFilled(ctx);
   stopPotFx(ctx);
   ctx.audio.stopSong();
   await ctx.goto('mandir', 'mandir', () => {
-    hold(ctx, k.paatal, { ...HELD, scale: HELD_SCALE });
+    hold(ctx, k.tokri, { ...HELD, y: -0.5, scale: HELD_SCALE });
     m.jhari.visible = false;
     m.tulsi.visible = false;
     m.kirtanSet.forEach((o) => (o.visible = false));
@@ -891,26 +917,26 @@ async function bhog(ctx) {
   ringGhanta(ctx);
   ctx.say('bhog');
 
-  // the paatal
-  const spot = chowkiSpot(m, -0.1);
+  // the tokri of jalebi
+  const spot = chowkiSpot(m, -0.12);
   await new Promise((resolve) => {
     let done = false;
     const go = async () => {
       if (done) return;
       done = true;
-      ctx.input.removeTarget(k.paatal);
+      ctx.input.removeTarget(k.tokri);
       ctx.input.removeTarget(m.chowki);
       stopA();
       ctx.hint.clear();
       ctx.audio.pop();
-      await setDown(ctx, k.paatal, m.group, spot, { height: 0.35, dur: 1.0, scale: 1 });
+      await setDown(ctx, k.tokri, m.group, spot, { height: 0.35, dur: 1.0, scale: TOKRI_ON_CHOWKI });
       resolve();
     };
-    // Touching the paatal, or the chowki it is going to, both work.
-    const stopA = ctx.fx.attention(() => worldPos(k.paatal), 0.2);
-    ctx.input.addTarget(k.paatal, go, { radius: 0.4 });
+    // Touching the tokri, or the chowki it is going to, both work.
+    const stopA = ctx.fx.attention(() => worldPos(k.tokri), 0.2);
+    ctx.input.addTarget(k.tokri, go, { radius: 0.4 });
     ctx.input.addTarget(m.chowki, go, { radius: 0.5, offset: V3(0, 0.25, 0) });
-    ctx.hint.set({ type: 'swipe', from: () => worldPos(k.paatal), to: () => worldPos(m.chowki).add(V3(0, 0.3, 0)) });
+    ctx.hint.set({ type: 'swipe', from: () => worldPos(k.tokri), to: () => worldPos(m.chowki).add(V3(0, 0.3, 0)) });
   });
   ctx.audio.sparkle();
 
@@ -921,7 +947,13 @@ async function bhog(ctx) {
     {
       obj: m.tulsi,
       radius: 0.2,
-      onTap: () => setDown(ctx, m.tulsi, m.group, spot.clone().add(V3(0, 0.07, 0)), { height: 0.3, dur: 0.9, scale: 1.8 }),
+      // the tulsi rests on top of the jalebis, and stays with them
+      onTap: () =>
+        setDown(ctx, m.tulsi, k.tokri, V3(0, tokriTop(ctx) + 0.01, 0), {
+          height: 0.3,
+          dur: 0.9,
+          scale: 1.8 / TOKRI_ON_CHOWKI,
+        }),
     },
   ]);
   ctx.audio.sparkle();
@@ -934,7 +966,7 @@ async function bhog(ctx) {
       obj: m.jhari,
       radius: 0.25,
       offset: V3(0, 0.15, 0),
-      onTap: () => setDown(ctx, m.jhari, m.group, chowkiSpot(m, 0.4), { height: 0.3, dur: 0.9, scale: 1.25 }),
+      onTap: () => setDown(ctx, m.jhari, m.group, chowkiSpot(m, 0.43), { height: 0.3, dur: 0.9, scale: 1.25 }),
     },
   ]);
   ringGhanta(ctx);
@@ -946,21 +978,20 @@ async function bhog(ctx) {
 function ensureOffered(ctx) {
   const k = ctx.world.kitchen;
   const m = ctx.world.mandir;
-  ensureJalebis(ctx, 'paatal');
-  ensureServingWare(ctx, { filled: true });
+  ensureTokriFilled(ctx);
   if (ctx.state.offered) return;
-  const spot = chowkiSpot(m, -0.1);
-  m.group.add(k.paatal);
-  k.paatal.position.copy(spot);
-  k.paatal.rotation.set(0, 0, 0);
-  k.paatal.scale.setScalar(1);
-  k.paatal.visible = true;
-  m.group.add(m.tulsi);
-  m.tulsi.position.copy(spot).add(V3(0, 0.07, 0));
-  m.tulsi.scale.setScalar(1.8);
+  m.group.add(k.tokri);
+  k.tokri.position.copy(chowkiSpot(m, -0.12));
+  k.tokri.rotation.set(0, 0, 0);
+  k.tokri.scale.setScalar(TOKRI_ON_CHOWKI);
+  k.tokri.visible = true;
+  k.tokri.add(m.tulsi);
+  m.tulsi.position.set(0, tokriTop(ctx) + 0.01, 0);
+  m.tulsi.rotation.set(0, 0, 0);
+  m.tulsi.scale.setScalar(1.8 / TOKRI_ON_CHOWKI);
   m.tulsi.visible = true;
   m.group.add(m.jhari);
-  m.jhari.position.copy(chowkiSpot(m, 0.4));
+  m.jhari.position.copy(chowkiSpot(m, 0.43));
   m.jhari.scale.setScalar(1.25);
   m.jhari.visible = true;
   ctx.state.offered = true;
@@ -1197,25 +1228,24 @@ async function sarao(ctx) {
   ctx.say('sarao');
   await tapAll(ctx, [
     {
-      obj: k.paatal,
+      obj: k.tokri,
       radius: 0.42,
+      offset: V3(0, 0.1, 0),
       onTap: async () => {
-        ctx.camera.attach(k.paatal);
-        k.paatal.add(m.tulsi); // the tulsi leaf rides along on the prasad
-        m.tulsi.position.set(0, 0.09, 0);
+        ctx.camera.attach(k.tokri); // the tulsi rides along on the prasad
         ctx.audio.whoosh();
         const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(HELD.tilt, 0, 0));
         await Promise.all([
-          arcTo(k.paatal, V3(HELD.x, HELD.y, HELD.z), 0.25, 0.9),
-          slerpTo(k.paatal, q, 0.9),
-          scaleTo(k.paatal, HELD_SCALE, 0.9, ease.inOut),
+          arcTo(k.tokri, V3(HELD.x, -0.5, HELD.z), 0.25, 0.9),
+          slerpTo(k.tokri, q, 0.9),
+          scaleTo(k.tokri, HELD_SCALE, 0.9, ease.inOut),
         ]);
       },
     },
     { obj: m.jhari, radius: 0.25, offset: V3(0, 0.2, 0), onTap: () => popOut(m.jhari) },
   ]);
   ctx.audio.stopSong();
-  await cheer(ctx, worldPos(k.paatal).add(V3(0, 0.5, 0)));
+  await cheer(ctx, worldPos(k.tokri).add(V3(0, 0.5, 0)));
 }
 
 // ---------------------------------------------------------------------------
@@ -1252,7 +1282,7 @@ function putJalebi(ctx, i, n) {
 async function serve(ctx) {
   const k = ctx.world.kitchen;
   const pg = ctx.world.pangat;
-  ensureServingWare(ctx, { filled: true });
+  ensureTokriFilled(ctx);
   const served = ensurePangat(ctx);
   ctx.audio.stopSong();
 
@@ -1264,9 +1294,6 @@ async function serve(ctx) {
     return p;
   });
   await ctx.goto('pangat', 'serve', () => {
-    // the offered paatal's prasad is mixed back into the basket
-    k.paatal.visible = false;
-    if (k.paatal.parent) k.paatal.parent.remove(k.paatal);
     k.tokri.visible = false;
     hold(ctx, stack, { ...HELD, scale: 0.58 });
   });

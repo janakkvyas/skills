@@ -46,13 +46,15 @@ much they add:
    chitraji or a photo of your sevya swaroop: straight-on, whole figure, even
    light, no glass reflection. The Nathdwara swaroop is a bas-relief, so a
    flat-backed model is true to the original.
-2. **`vaishnav:dada`, `vaishnav:ben`, `vaishnav:bal`, `vaishnav:bhai`** – the
+2. **`tokri`** – it holds every jalebi and is what is offered, so it is on
+   screen from the kitchen to the pangat.
+3. **`vaishnav:dada`, `vaishnav:ben`, `vaishnav:bal`, `vaishnav:bhai`** – the
    four diners. Generate each one already **seated cross-legged**; no rigging
    needed. A Tripo model sits still and does a happy little hop when served or
    eating (the built-in figures also fold their hands and lift food to the mouth).
-3. **`kadhai`, `pot`, `chulha`** – the cooking set, on screen for half the game.
-4. **`pakhawaj`, `jhanjh`, `ghanti`** – the kirtan instruments.
-5. Everything else, as you like.
+4. **`kadhai`, `pot`, `chulha`** – the cooking set, on screen for half the game.
+5. **`pakhawaj`, `jhanjh`, `ghanti`** – the kirtan instruments.
+6. Everything else, as you like.
 
 ## All slots
 
@@ -96,8 +98,8 @@ with `fit` if you need to.
 
 Not slots, by design:
 
-- **Jalebi.** The jalebis in the game are the ones your child draws in the
-  ghee – wobbly lines and all – so they stay drawn, not modelled.
+- **Jalebi.** Each jalebi pipes itself in as a spiral, which a model cannot
+  do, so it stays built in code.
 - **Parda, arch, walls, floors.** These move or tile, so they are made in code.
 - **Pichwai.** A flat picture. Put your own photo in `public/models/` and name
   it under `"textures": { "pichwai": "…" }`. The built-in one is a painted
