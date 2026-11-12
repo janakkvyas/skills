@@ -2,6 +2,13 @@ import * as THREE from 'three';
 import { registerModel } from '../engine/assets.js';
 import { onFrame } from '../engine/tween.js';
 import { mat, tex, COLORS } from './materials.js';
+import { surf, makeFlame, makeGlow, flameClock } from './surfaces.js';
+
+// Liquids share one ripple map; drift it so ghee and syrup shimmer.
+onFrame((dt, t) => {
+  flameClock.value = t;
+  surf.ripples().offset.set(t * 0.03, t * 0.021);
+});
 
 // Procedural stand-ins for every prop. Each is registered under a slot name
 // so a Tripo-generated .glb can replace it (see engine/assets.js).
@@ -17,7 +24,7 @@ function mesh(geo, material, { shadow = true, receive = true } = {}) {
   return m;
 }
 
-const lathe = (pts, segs = 28) => new THREE.LatheGeometry(pts, segs);
+const lathe = (pts, segs = 28) => new THREE.LatheGeometry(pts, Math.max(segs, 48));
 
 /** Quarter-ellipse bowl profile: radius R at the rim, depth H. */
 function bowlProfile(R, H, n = 12, a1 = Math.PI / 2) {
@@ -30,7 +37,7 @@ function bowlProfile(R, H, n = 12, a1 = Math.PI / 2) {
 }
 
 function disc(radius, material, y) {
-  const d = mesh(new THREE.CircleGeometry(radius, 36), material, { shadow: false });
+  const d = mesh(new THREE.CircleGeometry(radius, 56), material, { shadow: false });
   d.rotation.x = -Math.PI / 2;
   d.position.y = y;
   return d;
@@ -63,11 +70,7 @@ registerModel('kadhai', () => {
     g.add(h);
   }
   const gheeY = 0.215;
-  const ghee = disc(
-    0.655,
-    mat.fresh(COLORS.ghee, 0.12, 0.1, { transparent: true, opacity: 0.93 }),
-    gheeY,
-  );
+  const ghee = disc(0.655, mat.liquid(COLORS.ghee, 0.94), gheeY);
   g.add(ghee);
   g.userData.parts = { ghee };
   g.userData.keep = [ghee];
@@ -84,7 +87,7 @@ registerModel('pot', () => {
   const rim = mesh(new THREE.TorusGeometry(0.55, 0.018, 8, 40), mat.brass());
   rim.rotation.x = Math.PI / 2;
   rim.position.y = 0.445;
-  const liquid = disc(0.49, mat.fresh(COLORS.syrupClear, 0.08, 0.05, { transparent: true, opacity: 0.9 }), 0.14);
+  const liquid = disc(0.49, mat.liquid(COLORS.syrupClear, 0.92), 0.14);
   liquid.visible = false;
   const g = group({ liquid }, [liquid]);
   g.add(body, rim, liquid);
@@ -152,7 +155,7 @@ registerModel('lota', () => {
     ),
     mat.brassDouble(),
   );
-  const water = disc(0.12, mat.fresh(0x9ad7ee, 0.1, 0.1), 0.36);
+  const water = disc(0.12, mat.liquid(0x9ad7ee, 0.9), 0.36);
   const g = group({ water }, [water]);
   g.add(body, water);
   return g;
@@ -206,7 +209,7 @@ registerModel('chulha', () => {
     bevelSize: 0.03,
     bevelThickness: 0.03,
     bevelSegments: 2,
-    curveSegments: 22,
+    curveSegments: 72,
   });
   geo.rotateX(-Math.PI / 2);
   const wall = mesh(geo, mat.clay());
@@ -224,45 +227,41 @@ registerModel('chulha', () => {
     g.add(log);
   }
 
-  // Flames: licking out of the mouth and up around the pot.
+  // Fire: flames licking out of the mouth and up around the pot, a glow in
+  // the hearth, and a warm flickering light on everything nearby.
   const fire = new THREE.Group();
-  const flames = [];
-  const addFlame = (x, z, s) => {
-    const f = new THREE.Group();
-    const outer = mesh(new THREE.ConeGeometry(0.075, 0.34, 8), mat.flameOuter(), { shadow: false, receive: false });
-    outer.position.y = 0.17;
-    const inner = mesh(new THREE.ConeGeometry(0.04, 0.2, 8), mat.flameInner(), { shadow: false, receive: false });
-    inner.position.y = 0.11;
-    f.add(outer, inner);
-    f.position.set(x, 0.05, z);
-    f.userData = { s, ph: Math.random() * 10 };
+  for (let i = 0; i < 5; i++) {
+    const f = makeFlame(0.26 + (i % 2) * 0.08, 0.5 + (i % 3) * 0.12);
+    f.position.set((i - 2) * 0.12, 0.04, 0.42 + (i % 2) * 0.12);
     fire.add(f);
-    flames.push(f);
-  };
-  for (let i = 0; i < 5; i++) addFlame((i - 2) * 0.13, 0.5 + (i % 2) * 0.1, 0.9 + (i % 2) * 0.35);
+  }
   for (let i = 0; i < 9; i++) {
     const a = THREE.MathUtils.degToRad(-30 + (i / 8) * 240);
-    addFlame(Math.cos(a) * 0.6, -Math.sin(a) * 0.6 + 0.0, 0.0);
-    flames[flames.length - 1].position.y = H - 0.06;
-    flames[flames.length - 1].userData.s = 0.7 + (i % 3) * 0.18;
+    const f = makeFlame(0.2, 0.3 + (i % 3) * 0.07);
+    f.position.set(Math.cos(a) * 0.6, H - 0.07, -Math.sin(a) * 0.6);
+    fire.add(f);
   }
+  const hearth = makeGlow(0xff7a1a, 1.1, 0.3);
+  hearth.position.set(0, 0.15, 0.45);
+  fire.add(hearth);
+  const light = new THREE.PointLight(0xff8a30, 0, 4.5, 1.6);
+  light.position.set(0, 0.35, 0.75);
+  g.add(light);
   fire.visible = false;
   g.add(fire);
 
   onFrame((dt, t) => {
     if (!fire.visible) return;
-    for (const f of flames) {
-      const { s, ph } = f.userData;
-      const w = 0.75 + 0.25 * Math.sin(t * 13 + ph) + 0.12 * Math.sin(t * 29 + ph * 2);
-      f.scale.set(s * (0.9 + 0.1 * Math.sin(t * 17 + ph)), s * w, s);
-      f.rotation.z = Math.sin(t * 9 + ph) * 0.12;
-    }
+    const k = 0.8 + 0.2 * Math.sin(t * 11) * Math.sin(t * 7.3) + 0.08 * Math.sin(t * 31);
+    light.intensity = 1.5 * k;
+    hearth.material.opacity = 0.26 * k;
   });
 
   g.userData.top = H + 0.03;
   g.userData.setFire = (on) => {
     fire.visible = on;
     embers.visible = on;
+    if (!on) light.intensity = 0;
   };
   g.userData.keep = [fire];
   return g;
@@ -299,19 +298,39 @@ export function jalebiGeometry(variant = 0, detail = 'hi') {
   if (!jalebiGeoCache[key]) {
     const curve = jalebiCurve(variant * 1.7);
     const geo =
-      detail === 'hi' ? new THREE.TubeGeometry(curve, 96, 0.0175, 7) : new THREE.TubeGeometry(curve, 44, 0.0175, 5);
-    geo.translate(0, 0.0175, 0);
+      detail === 'hi' ? new THREE.TubeGeometry(curve, 150, 0.0195, 10) : new THREE.TubeGeometry(curve, 60, 0.0195, 6);
+    geo.translate(0, 0.0195, 0);
     jalebiGeoCache[key] = geo;
   }
   return jalebiGeoCache[key];
 }
 
-export const jalebiMaterial = (stage = 'syrup') =>
-  mat.fresh(
-    { raw: COLORS.jalebiRaw, fried: COLORS.jalebiFried, syrup: COLORS.jalebiSyrup }[stage],
-    stage === 'syrup' ? 0.16 : stage === 'fried' ? 0.4 : 0.7,
-    stage === 'syrup' ? 0.15 : 0,
-  );
+/** What a jalebi looks like at each stage: pale batter, crisp, then glazed in syrup. */
+export const JALEBI_LOOK = {
+  raw: { color: COLORS.jalebiRaw, roughness: 0.75, clearcoat: 0, sheen: 0 },
+  fried: { color: COLORS.jalebiFried, roughness: 0.5, clearcoat: 0.15, sheen: 0 },
+  syrup: { color: COLORS.jalebiSyrup, roughness: 0.3, clearcoat: 1, sheen: 0 },
+};
+
+export function applyJalebiLook(m, stage) {
+  const l = JALEBI_LOOK[stage];
+  m.color.set(l.color);
+  m.roughness = l.roughness;
+  m.clearcoat = l.clearcoat;
+}
+
+export const jalebiMaterial = (stage = 'syrup') => {
+  const m = new THREE.MeshPhysicalMaterial({
+    metalness: 0,
+    clearcoatRoughness: 0.12,
+    normalMap: surf.crisp(),
+    normalScale: new THREE.Vector2(0.5, 0.5),
+    emissive: 0x7a2c00,
+    emissiveIntensity: 0.12, // a little glow, as light passes through the sugar
+  });
+  applyJalebiLook(m, stage);
+  return m;
+};
 
 let sharedSyrupMat = null;
 export const sharedJalebiMaterial = () => sharedSyrupMat || (sharedSyrupMat = jalebiMaterial('syrup'));
@@ -417,15 +436,14 @@ registerModel('diya', () => {
     lathe([V2(0.0001, 0), V2(0.11, 0), V2(0.1, 0.03), V2(0.03, 0.08), V2(0.025, 0.42), V2(0.06, 0.46), V2(0.1, 0.5)], 16),
     mat.brassDouble(),
   );
-  const flame = mesh(new THREE.ConeGeometry(0.03, 0.1, 8), mat.flameInner(), { shadow: false, receive: false });
-  flame.position.y = 0.56;
-  const glow = mesh(new THREE.SphereGeometry(0.05, 8, 6), mat.flameOuter(), { shadow: false, receive: false });
-  glow.position.y = 0.54;
+  const flame = makeFlame(0.11, 0.24);
+  flame.position.y = 0.5;
+  const glow = makeGlow(0xffb347, 0.5, 0.3);
+  glow.position.y = 0.6;
   g.add(stand, glow, flame);
   const ph = Math.random() * 10;
   onFrame((dt, t) => {
-    flame.scale.y = 1 + 0.18 * Math.sin(t * 11 + ph);
-    flame.rotation.z = 0.1 * Math.sin(t * 7 + ph);
+    glow.material.opacity = 0.26 + 0.06 * Math.sin(t * 9 + ph);
   });
   return g;
 });

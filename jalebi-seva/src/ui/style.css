@@ -36,6 +36,19 @@ body {
   touch-action: none;
 }
 
+/* soft darkening toward the corners, like a lens */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 45%, transparent 55%, rgba(60, 25, 5, 0.34) 100%);
+  z-index: 1;
+}
+#hud {
+  z-index: 2;
+}
+
 /* ---- in-game overlay ---------------------------------------------------- */
 
 #hud {

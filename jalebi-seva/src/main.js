@@ -1,5 +1,9 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 // Only the scripts the game speaks: Devanagari, Gujarati and Latin.
 import '@fontsource/baloo-2/devanagari-700.css';
 import '@fontsource/baloo-2/devanagari-800.css';
@@ -75,23 +79,24 @@ renderer.setPixelRatio(pixelRatio);
 renderer.shadowMap.enabled = !lite;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.0;
+renderer.toneMappingExposure = 0.92;
 
 const scene = new THREE.Scene();
 const BG = { kitchen: 0xf7dba7, mandir: 0x7a1f2b, pangat: 0xfde8b8 };
 scene.background = new THREE.Color(BG.kitchen);
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-scene.environmentIntensity = 0.55;
+scene.environmentIntensity = 0.7;
 
 const camera = new THREE.PerspectiveCamera(46, 1, 0.1, 60);
 scene.add(camera); // things "held in the hands" are parented to the camera
 
-const hemi = new THREE.HemisphereLight(0xfff4e0, 0xb98a5a, 1.05);
+const hemi = new THREE.HemisphereLight(0xfff4e0, 0xb98a5a, 0.85);
 scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff1dc, 1.9);
 sun.castShadow = !lite;
-sun.shadow.mapSize.set(1024, 1024);
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.radius = 5;
 sun.shadow.camera.left = -6;
 sun.shadow.camera.right = 6;
 sun.shadow.camera.top = 6;
@@ -106,7 +111,25 @@ function lightArea(name) {
   const o = AREAS[name];
   sun.position.set(o.x + 3.2, 8, 5.5);
   sun.target.position.set(o.x, 0, -0.5);
+  fill.position.set(o.x - 5, 4, 3);
+  fill.target.position.set(o.x, 0.5, 0);
   scene.background.set(BG[name]);
+}
+
+// A cool fill from the other side keeps shadows from going flat.
+const fill = new THREE.DirectionalLight(0xbfd4ff, 0.45);
+scene.add(fill, fill.target);
+
+// Post-processing: a soft bloom so fire, lamps, brass highlights and syrup
+// glow. Dropped automatically on phones that cannot keep up.
+let composer = null;
+if (!lite) {
+  const size = renderer.getDrawingBufferSize(new THREE.Vector2());
+  const target = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: 4 });
+  composer = new EffectComposer(renderer, target);
+  composer.addPass(new RenderPass(scene, camera));
+  composer.addPass(new UnrealBloomPass(new THREE.Vector2(size.x / 2, size.y / 2), 0.15, 0.5, 1.45));
+  composer.addPass(new OutputPass());
 }
 
 // Keep the horizontal view constant on narrow (portrait) screens.
@@ -116,6 +139,10 @@ function resize() {
   const w = window.innerWidth;
   const h = window.innerHeight;
   renderer.setSize(w, h, false);
+  if (composer) {
+    composer.setPixelRatio(pixelRatio);
+    composer.setSize(w, h);
+  }
   const aspect = w / h;
   camera.aspect = aspect;
   camera.fov = aspect >= 1.65 ? BASE_FOV : Math.min(96, THREE.MathUtils.radToDeg(2 * Math.atan(H_HALF / aspect)));
@@ -250,15 +277,17 @@ function frame(now) {
   const slices = Math.max(1, Math.ceil(dt / 0.034));
   for (let i = 0; i < slices; i++) updateTweens(dt / slices);
   cam.update(simTime);
-  renderer.render(scene, camera);
+  if (composer) composer.render();
+  else renderer.render(scene, camera);
 
   frames++;
   if (real > 1 / 26) slowFrames++;
   if (frames >= 150) {
-    if (!lite && slowFrames > 75 && degraded < 2) {
+    if (!lite && slowFrames > 75 && degraded < 2 && !params.has('hq')) {
       degraded++;
       if (degraded === 1) {
-        pixelRatio = Math.min(pixelRatio, 1.25);
+        composer = null; // bloom is the first thing to go
+        pixelRatio = Math.min(pixelRatio, 1.5);
         renderer.setPixelRatio(pixelRatio);
       } else {
         renderer.setPixelRatio(1);

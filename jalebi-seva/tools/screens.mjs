@@ -14,7 +14,7 @@ const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--ena
 async function open(step, speed = 2) {
   const page = await browser.newPage({ viewport: { width: 800, height: 450 }, deviceScaleFactor: 2 });
   page.on('pageerror', (e) => console.log('[pageerror]', e.message));
-  await page.goto(`${base}#step=${step}&speed=${speed}`);
+  await page.goto(`${base}#step=${step}&speed=${speed}&hq=1`);
   await page.waitForFunction(() => window.__game, null, { timeout: 60000 });
   return page;
 }

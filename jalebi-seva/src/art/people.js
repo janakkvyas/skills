@@ -29,8 +29,8 @@ registerModel('vaishnav', (kind = 'bhai') => {
   const body = new THREE.Group(); // everything that bobs
   root.add(body);
   const skin = mat.color(k.skin, 0.75);
-  const top = mat.color(k.top, 0.85);
-  const lapM = mat.color(k.lap, 0.85);
+  const top = mat.cloth(k.top);
+  const lapM = mat.cloth(k.lap);
 
   const lap = part(new THREE.SphereGeometry(1, 18, 12), lapM);
   lap.scale.set(0.44, 0.15, 0.36);

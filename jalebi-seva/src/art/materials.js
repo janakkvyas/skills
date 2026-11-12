@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { surf } from './surfaces.js';
 
 // Shared materials and hand-painted canvas textures. Nothing here loads a
 // file: every surface is either a flat colour or drawn at start-up.
@@ -26,37 +27,65 @@ const once = (key, fn) => cache[key] || (cache[key] = fn());
 
 export const COLORS = {
   batterRaw: 0xfff3d0,
-  jalebiRaw: 0xffe9b0,
-  jalebiFried: 0xf78c0e,
+  jalebiRaw: 0xffe6a8,
+  jalebiFried: 0xf27a02,
   jalebiSyrup: 0xee6f04,
-  ghee: 0xdea23a,
+  ghee: 0xb46f0c,
   syrupClear: 0xfff1c9,
   syrupKesar: 0xf5a623,
   kesar: 0xd9480f,
   elaichi: 0x8fb04a,
 };
 
+const NS = (v) => new THREE.Vector2(v, v);
+
 export const mat = {
-  brass: () => once('brass', () => std(0xdba63f, 0.28, 0.9)),
-  gold: () => once('gold', () => std(0xf2c14e, 0.25, 0.95)),
-  steel: () => once('steel', () => std(0xd5dadd, 0.22, 0.95, { side: THREE.DoubleSide })),
-  brassDouble: () => once('brassD', () => std(0xdba63f, 0.3, 0.9, { side: THREE.DoubleSide })),
-  iron: () => once('iron', () => std(0x2d2c30, 0.5, 0.7, { side: THREE.DoubleSide })),
-  clay: () => once('clay', () => std(0xb5653a, 0.95)),
-  clayDark: () => once('clayDark', () => std(0x7a3f22, 0.95)),
-  wood: () => once('wood', () => std(0x8a5a2b, 0.75)),
-  woodDark: () => once('woodDark', () => std(0x5c3a1a, 0.8)),
-  white: () => once('white', () => std(0xfffdf6, 0.6)),
-  red: () => once('red', () => std(0xc1121f, 0.7)),
+  brass: () => once('brass', () => std(0xd9a035, 0.3, 1, { normalMap: surf.hammered(), normalScale: NS(0.5) })),
+  gold: () => once('gold', () => std(0xf0bc45, 0.24, 1, { normalMap: surf.hammered([8, 3]), normalScale: NS(0.25) })),
+  steel: () =>
+    once('steel', () => std(0xd5dadd, 0.2, 1, { side: THREE.DoubleSide, normalMap: surf.brushed(), normalScale: NS(0.35) })),
+  brassDouble: () =>
+    once('brassD', () => std(0xd9a035, 0.3, 1, { side: THREE.DoubleSide, normalMap: surf.hammered(), normalScale: NS(0.5) })),
+  iron: () =>
+    once('iron', () => std(0x26252a, 0.55, 0.85, { side: THREE.DoubleSide, normalMap: surf.hammered([7, 3]), normalScale: NS(0.6) })),
+  clay: () =>
+    once('clay', () =>
+      std(0xffffff, 0.95, 0, { map: surf.mottle(0xb5653a, [2, 2], 0.45), normalMap: surf.rough([2, 2], 3.2), normalScale: NS(1) }),
+    ),
+  clayDark: () =>
+    once('clayDark', () => std(0xffffff, 0.95, 0, { map: surf.mottle(0x7a3f22, [3, 3], 0.4), normalMap: surf.rough([3, 3], 3), normalScale: NS(1) })),
+  wood: () => once('wood', () => std(0xffffff, 0.7, 0, { ...surf.wood(0x8a5a2b, [1, 1]), normalScale: NS(0.8) })),
+  woodDark: () => once('woodDark', () => std(0xffffff, 0.8, 0, { ...surf.wood(0x5c3a1a, [1, 2]), normalScale: NS(1) })),
+  white: () => once('white', () => std(0xfffdf6, 0.75, 0, { normalMap: surf.cloth(), normalScale: NS(0.35) })),
+  red: () => once('red', () => std(0xc1121f, 0.8, 0, { normalMap: surf.cloth(), normalScale: NS(0.4) })),
   black: () => once('black', () => std(0x1b1b1f, 0.5)),
-  ember: () => once('ember', () => new THREE.MeshBasicMaterial({ color: 0xff5a1f })),
-  flameOuter: () =>
-    once('flameO', () => new THREE.MeshBasicMaterial({ color: 0xff7a00, transparent: true, opacity: 0.88, depthWrite: false })),
-  flameInner: () =>
-    once('flameI', () => new THREE.MeshBasicMaterial({ color: 0xffe14d, transparent: true, opacity: 0.95, depthWrite: false })),
+  ember: () => once('ember', () => new THREE.MeshBasicMaterial({ color: 0xff6a1f, toneMapped: false })),
   color: (hex, rough = 0.7, metal = 0) => once(`c${hex}_${rough}_${metal}`, () => std(hex, rough, metal)),
+  /** Soft cloth in any colour (clothes, cushions). */
+  cloth: (hex, rough = 0.85) =>
+    once(`cl${hex}_${rough}`, () => std(hex, rough, 0, { normalMap: surf.cloth([8, 8]), normalScale: NS(0.45) })),
+  /** Painted plaster wall. */
+  plaster: (hex) =>
+    once(`pl${hex}`, () => std(0xffffff, 0.95, 0, { map: surf.mottle(hex, [3, 2], 0.22, 13), normalMap: surf.rough([6, 3], 1.6, 17), normalScale: NS(0.6) })),
+  /** Tiled floor. */
+  floor: (a, b, reps, rough = 0.85, metal = 0) =>
+    once(`fl${a}${b}${reps}`, () => std(0xffffff, rough, metal, { ...surf.tiles(a, b, reps), normalScale: NS(0.9) })),
   /** A fresh (uncached) material for things whose colour animates. */
   fresh: (hex, rough = 0.7, metal = 0, extra = {}) => std(hex, rough, metal, extra),
+  /** A liquid surface: glossy, gently rippling. */
+  liquid: (hex, opacity = 0.93) =>
+    new THREE.MeshPhysicalMaterial({
+      color: hex,
+      roughness: 0.16,
+      metalness: 0,
+      clearcoat: 0.5,
+      clearcoatRoughness: 0.05,
+      transparent: true,
+      opacity,
+      normalMap: surf.ripples(),
+      normalScale: NS(0.35),
+      envMapIntensity: 0.25,
+    }),
 };
 
 // ---- textures ----------------------------------------------------------------

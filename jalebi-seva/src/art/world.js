@@ -85,12 +85,12 @@ export function makeSwirl(radius) {
 
 function buildKitchen() {
   const g = new THREE.Group();
-  const fl = floor(16, 12, new THREE.MeshStandardMaterial({ map: tex.tiles('#cf8a55', '#c27c48', 10), roughness: 0.95 }));
+  const fl = floor(16, 12, mat.floor('#c98250', '#b8703f', 14, 0.8));
   g.add(fl);
-  const wall = plane(16, 6, mat.color(0xf7dba7, 0.95));
+  const wall = plane(16, 6, mat.plaster(0xf7dba7));
   wall.position.set(0, 3, -2.4);
   g.add(wall);
-  const dado = plane(16, 1.0, mat.color(0xc8553d, 0.95));
+  const dado = plane(16, 1.0, mat.plaster(0xc8553d));
   dado.position.set(0, 0.5, -2.39);
   g.add(dado);
   const stripe = plane(16, 0.08, mat.color(0xf2c14e, 0.8));
@@ -203,7 +203,7 @@ function archWall({ width = 14, height = 5.6, openW = 3.7, springY = 2.25, rise 
   hole.closePath();
   shape.holes.push(hole);
   const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.3, bevelEnabled: false });
-  const wall = new THREE.Mesh(geo, mat.color(0xf3c98b, 0.95));
+  const wall = new THREE.Mesh(geo, mat.plaster(0xf3c98b));
   wall.receiveShadow = true;
   wall.castShadow = true;
   const trimPts = [V3(-rx, 0, 0.32), V3(-rx, springY, 0.32), ...edge.map((p) => V3(p.x, p.y, 0.32)), V3(rx, 0, 0.32)];
@@ -230,9 +230,9 @@ function curtainHalf(side, w, h) {
 function buildMandir() {
   const g = new THREE.Group();
   g.position.copy(AREAS.mandir);
-  g.add(floor(16, 14, new THREE.MeshStandardMaterial({ map: tex.tiles('#f7ead8', '#e9c9b0', 9), roughness: 0.4, metalness: 0.05 })));
+  g.add(floor(16, 14, mat.floor('#f4e6d2', '#e3bfa4', 9, 0.28, 0.05)));
 
-  const back = plane(16, 6, mat.color(0x7a1f2b, 0.95));
+  const back = plane(16, 6, mat.plaster(0x7a1f2b));
   back.position.set(0, 3, -3.4);
   g.add(back);
   // The family can supply its own pichwai picture (manifest "textures").
@@ -255,6 +255,10 @@ function buildMandir() {
   const chowki = make('chowki');
   chowki.position.set(0, 0.3, -1.45);
   g.add(sinhasan, deity, chowki);
+  // warm lamp-light inside the nij mandir
+  const lamp = new THREE.PointLight(0xffd29a, 2.2, 7, 1.5);
+  lamp.position.set(0, 2.3, -1.5);
+  g.add(lamp);
 
   const diyas = [];
   for (const sx of [-1, 1]) {
@@ -326,11 +330,11 @@ function buildMandir() {
 function buildPangat() {
   const g = new THREE.Group();
   g.position.copy(AREAS.pangat);
-  g.add(floor(16, 14, new THREE.MeshStandardMaterial({ map: tex.tiles('#f1dcae', '#e9cf99', 9), roughness: 0.9 })));
-  const wall = plane(16, 6, mat.color(0xfde8b8, 0.95));
+  g.add(floor(16, 14, mat.floor('#e0bd82', '#d1a868', 9, 0.75)));
+  const wall = plane(16, 6, mat.plaster(0xfde8b8));
   wall.position.set(0, 3, -2.9);
   g.add(wall);
-  const dado = plane(16, 0.9, mat.color(0xe07a5f, 0.95));
+  const dado = plane(16, 0.9, mat.plaster(0xe07a5f));
   dado.position.set(0, 0.45, -2.89);
   g.add(dado);
   // arched niches along the wall

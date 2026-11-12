@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { tween, wait, ease, arcTo, scaleTo, boing, rotateTo, onFrame } from '../engine/tween.js';
 import { make } from '../engine/assets.js';
 import { COLORS } from '../art/materials.js';
-import { jalebiMaterial, jalebiPile, jalebiGeometry, sharedJalebiMaterial } from '../art/props.js';
+import { jalebiMaterial, jalebiPile, jalebiGeometry, sharedJalebiMaterial, applyJalebiLook } from '../art/props.js';
 import { AREAS, makeSwirl } from '../art/world.js';
 import { praise } from './i18n.js';
 
@@ -286,10 +286,7 @@ function potSlot(k, i) {
 }
 
 function setStage(j, stage) {
-  const m = j.material;
-  m.color.set({ raw: COLORS.jalebiRaw, fried: COLORS.jalebiFried, syrup: COLORS.jalebiSyrup }[stage]);
-  m.roughness = stage === 'syrup' ? 0.16 : stage === 'fried' ? 0.4 : 0.7;
-  m.metalness = stage === 'syrup' ? 0.15 : 0;
+  applyJalebiLook(j.material, stage);
 }
 
 function newJalebi(ctx, pos, stage) {
@@ -636,8 +633,8 @@ async function dipIntoPot(ctx, j) {
   await arcTo(j.obj, slot, 1.0, 0.75);
   ctx.audio.plop();
   ctx.fx.splash(slot, COLORS.syrupKesar, 9);
-  j.material.roughness = 0.16;
-  j.material.metalness = 0.15;
+  j.material.roughness = 0.3;
+  tween(0.8, (t) => (j.material.clearcoat = 0.15 + 0.85 * t));
   await Promise.all([
     lerpColor(j.material, COLORS.jalebiSyrup, 0.8),
     tween(0.8, (t) => (j.obj.position.y = slot.y - Math.sin(t * Math.PI) * 0.03)),
@@ -755,7 +752,8 @@ async function fry(ctx) {
       const stop = ctx.fx.bubbles(worldPos(j.obj), 0.13, 0xffffff, 16);
       await lerpColor(j.material, COLORS.jalebiFried, 1.6);
       stop();
-      j.material.roughness = 0.4;
+      j.material.roughness = 0.5;
+      j.material.clearcoat = 0.15;
       j.fried = true;
       ctx.fx.stars(worldPos(j.obj).add(V3(0, 0.15, 0)), 6);
       ctx.audio.sparkle();
