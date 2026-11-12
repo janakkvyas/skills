@@ -120,6 +120,22 @@ Give it one or two months. Compare the paper P&L against the Nifty line in
 If the experience of watching it is unpleasant at ₹30k, it will be unbearable
 at ₹3 lakh, and that is worth knowing before Stage 3.
 
+### Dhan (read-only): `dhan_view.py`
+
+Shows your real Dhan account. It can only send GET requests; there is no
+code path that places, changes or cancels an order.
+
+```bash
+python dhan_view.py                   # cash, holdings, open positions
+python dhan_view.py journal --days 365 --csv trades.csv   # every trade, P&L by symbol, charges
+```
+
+Uses Dhan's free Trading API tier (no ₹499 data plan needed). The access
+token lasts 24 hours: regenerate it on web.dhan.co → DhanHQ Trading APIs.
+On your own computer set `DHAN_ACCESS_TOKEN`; in a Claude Code cloud session
+the token is saved as a network secret and injected automatically, so it is
+never in the code, the repo or the chat.
+
 ### Plugging in a broker later
 
 `paper.py` only needs two things from the outside world: daily closes (now
