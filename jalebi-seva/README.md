@@ -47,7 +47,7 @@ Every jalebi the child makes goes into the one tokri that is offered: make three
 
 ## Install on an Android phone or tablet
 
-1. Copy `release/jalebi-seva-0.4.0.apk` to the phone and open it.
+1. Copy `release/jalebi-seva-0.5.0.apk` to the phone and open it.
 2. Android will ask to allow installing from this source – allow it, then
    install. (Play Protect may ask to scan an app it has not seen; that is fine.)
 3. Open **Jalebi Seva**. It plays in landscape, full screen.
